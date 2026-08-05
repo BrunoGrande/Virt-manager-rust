@@ -35,6 +35,15 @@ map's tickets are resolved.
   GitHub Actions integration installed). Tracker is local-markdown regardless
   (no `setup-matt-pocock-skills` config in this repo) — map and tickets live
   under `.scratch/rust-conversion/`, not GitHub Issues.
+- **Resolved tickets get amended by later ones when research surfaces new
+  facts, rather than re-litigated.** Live amendment chain so far: ticket
+  02 ← amended by 09 (event-registration gap's real fix is binding
+  `libvirt-glib`, not the hand-rolled FFI shim ticket 02 originally
+  concluded with); ticket 10 ← amended by 12 (concrete shape of the
+  live/persistent duality ticket 10 could only defer). Check a resolved
+  ticket's full file, not just its map bullet, before treating its
+  original conclusion as final — amendments live in the ticket file, the
+  map bullet is a summary that gets updated alongside.
 
 ## Decisions so far
 
@@ -52,10 +61,10 @@ map's tickets are resolved.
 - [Async / background-task model](./issues/09-async-background-task-model.md) — two separate problems: libvirt's own event loop binds `libvirt-glib` via `gir` (what upstream actually does, found in `virtmanager.py`'s bootstrap — amends ticket 02); blocking-call offload is plain OS threads + `glib::MainContext::channel()`, no `tokio` (every `virt` call is synchronous, nothing for a runtime to multiplex). Cooperative `Arc<AtomicBool>` cancellation, one shared progress-modal wrapper all long-running calls route through, matching upstream's `asyncjob.py` exactly.
 - [VM details window](./issues/10-vm-details-window.md) — `GtkListBox` for the `hw-list` sidebar (a dozen-ish rows, not `ListView`-scale), direct port of upstream's pending-edit/Apply architecture (edits scoped to the selected row, confirm-or-discard on switch), a per-`HW_LIST_TYPE` `Option<T>`-field pending-edit struct (not an enum-of-structs — row fields can be simultaneously dirty, unlike ticket 08's mutually-exclusive `InstallMethod`). Remove Device is immediate, routes through ticket 09's async wrapper. Spun off Snapshot management as ticket 11 and deferred the live/persistent (`AFFECT_LIVE`/`AFFECT_CONFIG`) config duality to the `virtinst-core` ticket. **Amended by ticket 12** with that duality's concrete shape.
 - [Add Hardware wizard](./issues/12-add-hardware-wizard.md) — `enum NewDevice` (17 mutually-exclusive variants, same compile-time-exhaustive pattern as ticket 08's `InstallMethod`), companion-controller dependencies folded directly into a variant rather than a bolted-on side-channel. Found and ported the concrete live+persistent attach pattern (`attach_device()` then always `add_device()`, degrading to persistent-only on hotplug failure) — the answer ticket 10 had deferred. Device-default dispatch stays opaque, deferred to the not-yet-opened per-driver-defaults item.
+- [Snapshot management](./issues/11-snapshot-management.md) — resolved by verified precedent, not a fresh grilling round (see ticket file for the source checks this rested on, including a first-read widget guess that source-reading corrected before it got written down). `GtkListBox`-with-custom-row-widget for the snapshot list (one rendered column, not the six-column tabular grid it first looked like; confirmed no parent/child snapshot tree is displayed), create/revert/delete already on ticket 09's `vmmAsyncJob` rails, `enum NewSnapshot` for the mutually-exclusive internal/external/disk-only creation modes, snapshot-XML construction opaque-deferred to `virtinst-core` same as ticket 12's device defaults.
 
 ## Not yet specified
 
-- [Snapshot management](./issues/11-snapshot-management.md) — ticket 11, open. Spun out of ticket 10: create/delete/revert, the snapshot list/tree widget, and how snapshot XML interacts with ticket 06's XML modeling.
 - Per-screen specs for the remaining 14 screens + 13 shared widgets ticket 07 located — next up: VM Manager main window.
 - Console-viewer implementation specifics (per-channel breakdown of the
   pure-Rust-first / gir-fallback approach decided in ticket 05, fallback
