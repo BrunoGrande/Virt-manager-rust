@@ -47,3 +47,14 @@ redirection, clipboard sync, folder sharing) — not an upfront wholesale
 commitment to FFI/gir binding work. Full console-viewer implementation
 specifics (per-channel breakdown, fallback triggers) are deferred to the
 console-viewer GUI-screen ticket, where real constraints will be known.
+
+**Amendment (from ticket 14):** the real constraints came in and both
+channels escalate immediately rather than starting pure-Rust. `vnc-rs`
+turned out to be `tokio`-based (conflicts with ticket 09's no-async-
+runtime decision) and `whitequark/rust-vnc` admits no auth/encryption at
+all in its own README; `spice-client`'s audio/clipboard/USB-redirect are
+confirmed unimplemented against features upstream genuinely uses. Both
+channels bind `libgvnc`/`libspice-client-glib` via `gir` from the start —
+the GTK-independent-core structure this ticket found still holds (that's
+*why* gir-binding them doesn't reopen GTK3-in-GTK4 risk), just without
+the pure-Rust-first attempt actually paying off in practice.

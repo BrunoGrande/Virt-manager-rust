@@ -2,7 +2,7 @@
 id: 14
 title: Console-viewer implementation specifics
 type: research
-status: open
+status: resolved
 blocked_by: [05, 09]
 claimed_by: null
 ---
@@ -17,7 +17,7 @@ actually look like per channel, given what the crates really support
 today — and does the SSH-tunnel transport (`sshtunnels.py`) need its own
 design pass?
 
-## Resolution (partial — real research done, one conflict needs your call)
+## Resolution
 
 **SSH tunnel transport — settled, no crate needed.** Traced
 `sshtunnels.py`'s `_Tunnel.open()`: it's `os.fork()` +
@@ -51,24 +51,23 @@ clipboard sync via the main channel. So the SPICE channel needs the
 gir-bound `libspice-client-glib` escalation *today*, for real parity, not
 as a someday-maybe fallback.
 
-## Open forks — need your call, not a guess
+**VNC — decided: skip pure-Rust, go straight to gir-bound `libgvnc`.**
+Same escalation SPICE already needs, chosen over both alternatives rather
+than chasing more research to rescue a pure-Rust pick: `vnc-rs`'s `tokio`
+dependency would be the one exception to ticket 09's no-async-runtime
+decision, and `whitequark/rust-vnc`'s missing auth/encryption is a real
+gap against real libvirt/QEMU VNC displays, not a paperwork gap. Neither
+was worth the dependency risk for what it'd save.
 
-1. **VNC crate + the tokio question.** Three real options, not
-   precedent-covered by anything already on the map: (a) use `vnc-rs`,
-   accept `tokio` — but confined to a single isolated worker thread
-   (spin up a single-threaded tokio runtime inside the same dedicated OS
-   thread ticket 09 already uses for blocking-call offload, so it never
-   touches the main GLib loop), not a blanket reversal of ticket 09;
-   (b) use `whitequark/rust-vnc` despite the missing-auth gap, and build
-   auth/TLS on top by hand; (c) skip the pure-Rust-first approach
-   entirely for VNC specifically and go straight to gir-bound `libgvnc`,
-   same as SPICE is about to need anyway.
-2. **How much more research before deciding #1.** VeNCrypt/TLS and
-   clipboard support for both crates is still unconfirmed — worth 15
-   minutes reading actual source/tests before locking in, or is "no
-   confirmed TLS support in either" itself enough to just pick option
-   (c) above and stop chasing pure-Rust VNC further?
-
-Not deciding either of these — they're judgment calls about how much
-new-dependency risk (tokio-in-a-box) versus escalation-by-default this
-project wants, and the map has no precedent that settles it either way.
+**Net result: both channels end up gir-bound, not pure-Rust-first.**
+`libgvnc` for VNC, `libspice-client-glib` for SPICE — both are the
+GTK-independent protocol/session cores ticket 05 already confirmed exist
+separately from the GTK3 widget layer (ticket 01's finding), so this
+still doesn't reopen any GTK3-widget-in-a-GTK4-app risk; it's the same
+"bind the mature C library via `gir`" pattern already used for
+`libosinfo` (04) and `libvirt-glib` (09), just applied here too instead
+of the pure-Rust-crate path ticket 05 had hoped would hold. **Amends
+ticket 05** — its "pure-Rust protocol crates first, escalate only if
+needed" framing was the right starting hypothesis, but in practice both
+channels escalate immediately once actually checked against real crate
+capabilities.
