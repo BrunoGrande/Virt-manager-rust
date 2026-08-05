@@ -33,7 +33,8 @@ virtinst/                    →  Rust module              →  decided by
                                  + domain)                     type), 08 builds it
                                  directly, no DOM, per ticket 08's finding
   storage.py, network.py,    →  storage::Pool/Vol,          →  06's pattern,
-  nodedev.py, snapshot.py       network::Network, etc.         same shape as Guest
+  nodedev.py, snapshot.py,      network::Network, etc.         same shape as Guest
+  cloner.py                     cloner::Cloner                 (added per 16)
   xmlbuilder.py, xmlapi.py   →  NOT PORTED                  →  06 explicitly
                                                                 rejected this
                                                                 (runtime dynamic-
