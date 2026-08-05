@@ -2,7 +2,7 @@
 id: 08
 title: Create VM wizard
 type: grilling
-status: open
+status: resolved
 blocked_by: [04, 05, 06, 07]
 claimed_by: null
 ---
@@ -31,4 +31,68 @@ branching upstream uses?
 
 ## Resolution
 
-*(not yet resolved)*
+Grilled across 4 rounds, grounded in `createvm.py`'s actual mechanics
+(checked directly, not assumed): upstream's "notebook" is index-addressed
+only, tabs hidden, visibility managed by hand; there's exactly one skip rule
+(Storage, for import/container-app/container-os/VZ-template); `_gdata` is
+mutated incrementally as each page validates; the real `Guest` is built once
+at Finish via `_gdata.build_guest()`; OS-detect-on-Next is a self-contained
+early-return-then-callback-reinvokes-forward pattern.
+
+**State machine.**
+- Page container: `GtkStack` — the direct `gtk4-rs` analog of what upstream
+  is actually doing (index-addressed child switching, no tab UI), not a
+  replicated `GtkNotebook`-with-hidden-tabs.
+- Transitions/skip logic: hand-written `match` functions on a `WizardPage`
+  enum, porting `_get_next_pagenum`/`_should_skip_disk_page` directly. One
+  real skip rule doesn't justify a generic declarative page-graph engine.
+- `WizardState` mutates incrementally — each page's Next-click validates
+  that page's raw widget values and writes them in immediately, mirroring
+  upstream's per-page `_gdata` writes (e.g. `_validate_mem_page`).
+  `InstallMethod` is finalized the moment the Install page validates.
+- `WizardState` stays a plain struct with `Option<T>` fields (`name`,
+  `install`, `mem`, `os`, `storage`, …), not a typestate/phantom-type chain.
+  Step ordering is already enforced procedurally — the only way to reach a
+  later page is the Next button — so typestate would be compile-time proof
+  of something the UI already makes structurally impossible to violate.
+  One final "all required fields are `Some`" check at Finish.
+
+**Data model (the ticket's core "exhaustive at compile time" question).**
+- `InstallMethod` is an enum with per-variant required (non-`Option`)
+  fields — `Iso { media }`, `Url { location, extra_args }`, `Manual`,
+  `Import { path }`, `ContainerApp { .. }`, `ContainerOs { .. }`,
+  `VzTemplate { .. }` — replacing upstream's flat ~20-field-optional
+  `_GuestData` accumulator. A flat `Option`-heavy struct still lets you
+  construct nonsense field combinations the compiler won't catch; the
+  enum-of-structs doesn't.
+- Storage-page relevance is derived from `InstallMethod::wants_storage_page()`
+  rather than a separately-maintained predicate — one source of truth
+  instead of upstream's two (the enum, and `_should_skip_disk_page`).
+- `os: Option<OsInfo>` (ticket 04) and `storage: Option<StorageConfig>` are
+  top-level `WizardState` fields, not duplicated across the 4 `InstallMethod`
+  variants that use them. Duplicating an identically-typed field across
+  variants to shave one `Option` isn't what the exhaustiveness goal was
+  after — that goal was about method-specific *required data* (a URL isn't
+  a path isn't a container image), which the enum-of-structs already covers.
+
+**Guest construction.** `WizardState → Guest` bypasses ticket 06's
+order-preserving `edit-xml` DOM entirely — direct struct construction,
+fresh serialization, matching upstream's `_gdata.build_guest()`. That DOM
+layer exists to satisfy ticket 03's round-trip-preservation acceptance bar
+for *editing existing* documents; there's no existing document on the
+create path for it to preserve. The DOM path belongs to edit-surface
+tickets (virt-xml, host/network/pool edit dialogs) when those are opened.
+
+**Explicitly out of scope, deferred elsewhere:**
+- Async OS-detection gate (`_start_detect_os_if_needed`): spun out as
+  **ticket 09** (async/background-task model) — cross-cutting (the
+  async-job modal, migrate, and clone all need the same answer), not
+  wizard-specific. Ticket 08 doesn't need to reserve any special
+  "pending" transition state for it either way — traced the upstream
+  callback chain and it's a self-contained early-return-then-the-callback-
+  reinvokes-forward pattern, works under any async mechanism ticket 09
+  picks.
+- "Customize before install" dialog handoff: deferred until the
+  VM-details-window screen has its own ticket (ticket 07 flagged it as the
+  second-biggest screen, 2522 LOC). Ticket 08 ends at "Finish produces a
+  `Guest` + installer, ready to be opened by something."
