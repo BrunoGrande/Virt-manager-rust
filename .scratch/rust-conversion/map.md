@@ -65,6 +65,8 @@ map's tickets are resolved.
 
 ## Not yet specified
 
+- [VM Manager main window](./issues/13-vm-manager-main-window.md) — ticket 13, partially resolved, one fork left open on purpose. Row-activation dispatch, live-stats feed, and delete/context-menu actions are settled by precedent (tickets 09/10). The open fork: this is the app's one genuine two-level tree (connections → VMs, `Gtk.TreeStore` + a custom `CellRendererSparkline`), not a flat list like tickets 10/11 — and `gtk4-rs` still ships (deprecated-since-4.10 but present, verified against the actual GTK4 typelib) `TreeView`/`TreeStore`/`CellRenderer*`, so it's a real choice between porting close to 1:1 on deprecated API vs. migrating to `GtkListView`+`GtkTreeListModel`+`GtkTreeExpander`, not a forced one. Needs your call, not a guess.
+
 - Per-screen specs for the remaining 14 screens + 13 shared widgets ticket 07 located — next up: VM Manager main window.
 - Console-viewer implementation specifics (per-channel breakdown of the
   pure-Rust-first / gir-fallback approach decided in ticket 05, fallback
