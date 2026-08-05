@@ -51,7 +51,7 @@ map's tickets are resolved.
 
 ## Not yet specified
 
-- Per-screen specs for the 17 screens + 13 shared widgets ticket 07 located — biggest/riskiest first: Create VM wizard, VM details window, Add Hardware wizard, VM Manager main window.
+- Per-screen specs for the 17 screens + 13 shared widgets ticket 07 located — biggest/riskiest first: [Create VM wizard](./issues/08-create-vm-wizard.md) (ticket 08, open), then VM details window, Add Hardware wizard, VM Manager main window.
 - Console-viewer implementation specifics (per-channel breakdown of the
   pure-Rust-first / gir-fallback approach decided in ticket 05, fallback
   triggers) — needs its own ticket once GUI-screen work starts.
