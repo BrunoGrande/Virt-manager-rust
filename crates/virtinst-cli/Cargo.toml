@@ -1,0 +1,24 @@
+[package]
+name = "virtinst-cli"
+description = "virt-install/virt-clone/virt-xml — CLI tools sharing virtinst-core with the GUI, plus a thin CLI-only shell (see ticket 16)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "virt-install"
+path = "src/bin/virt-install.rs"
+
+[[bin]]
+name = "virt-clone"
+path = "src/bin/virt-clone.rs"
+
+[[bin]]
+name = "virt-xml"
+path = "src/bin/virt-xml.rs"
+
+[dependencies]
+virtinst-core = { path = "../virtinst-core" }
+# clap = "*"   # argument parsing — pin once a toolchain is available to check current version.

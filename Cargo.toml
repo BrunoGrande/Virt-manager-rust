@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = ["crates/virtinst-core", "crates/virt-manager", "crates/virtinst-cli"]
+
+# See .scratch/rust-conversion/map.md and its issues/ for the decisions
+# this workspace shape encodes — ticket 15 in particular (crate/module
+# boundaries) and ticket 18 (license, distribution, build scope).
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+rust-version = "1.75"
+repository = "https://github.com/BrunoGrande/Virt-manager-rust"

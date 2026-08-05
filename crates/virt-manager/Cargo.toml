@@ -1,0 +1,23 @@
+[package]
+name = "virt-manager"
+description = "GTK4 desktop GUI for managing libvirt VMs — see ticket 05 (toolkit choice) and the per-screen tickets in .scratch/rust-conversion/issues/."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "virt-manager"
+path = "src/main.rs"
+
+[dependencies]
+virtinst-core = { path = "../virtinst-core" }
+# gtk4 = "*"    # ticket 05 — pin once a toolchain is available to check current version.
+# glib = "*"    # async/background-task bridging (ticket 09): std::thread +
+#               # glib::MainContext::channel(), no tokio.
+#
+# gir-generated, not yet vendored/generated (tickets 09, 14):
+#   - libvirt-glib (Connection/Domain event signals)
+#   - libgvnc, libspice-client-glib (console viewer — both channels ended
+#     up gir-bound per ticket 14's amendment to ticket 05)

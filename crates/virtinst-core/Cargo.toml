@@ -1,0 +1,19 @@
+[package]
+name = "virtinst-core"
+description = "Domain/device XML modeling, libvirt connection handling, and install/clone logic shared by the GUI and CLI tools — no GTK dependency (see ticket 15)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+# virt = "*"          # libvirt bindings (ticket 02) — pin once a toolchain is available to check current major version.
+# edit-xml = "*"       # order-preserving XML DOM (ticket 06) — backs the editable domain/device XML surface.
+#
+# gir-generated, not yet vendored/generated (tickets 04, 09, 17):
+#   - libvirt-glib event-loop + Connection/Domain signals
+#   - libosinfo OS database
+# These need a `gir` codegen pass against the system .gir files
+# (confirmed present: gir1.2-libvirt-glib-1.0, and libosinfo once that
+# package is installed) before they're addable as path/git dependencies.
