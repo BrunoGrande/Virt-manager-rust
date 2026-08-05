@@ -7,11 +7,15 @@
 //! assumed to work because the macro compiles.
 
 use crate::devices::{DeviceDisk, DeviceList};
-use crate::domain::Clock;
+use crate::domain::{Clock, CurrentMemory};
+use crate::guest::Guest;
 use virtinst_xml::{parse_libvirt_xml, XmlBound};
 
 const FIXTURE: &str = r#"<domain type="qemu">
   <name>test-vm</name>
+  <title>My Test VM</title>
+  <description>A VM used for testing.</description>
+  <currentMemory unit="KiB">1048576</currentMemory>
   <clock offset="utc"/>
   <devices>
     <disk type="file" device="disk">
@@ -186,4 +190,78 @@ fn list_remove_removes_only_the_targeted_element() {
     assert!(out.contains(r#"file="/old/path.qcow2""#));
     assert!(out.contains("<name>test-vm</name>"));
     assert!(out.contains(r#"note="untouched-foreign-namespace""#));
+}
+
+#[test]
+fn attribute_and_text_bind_to_the_same_element() {
+    let doc = parse_libvirt_xml(FIXTURE).expect("fixture parses");
+    let root = doc.root_element().expect("root element");
+    let mem_el = root.find(&doc, "currentMemory").expect("<currentMemory>");
+
+    let mem = CurrentMemory::from_element(&doc, mem_el);
+    assert_eq!(mem.unit, Some("KiB".to_string()));
+    assert_eq!(mem.value, Some("1048576".to_string()));
+}
+
+#[test]
+fn editing_text_preserves_the_sibling_attribute() {
+    let mut doc = parse_libvirt_xml(FIXTURE).expect("fixture parses");
+    let root = doc.root_element().expect("root element");
+    let mem_el = root.find(&doc, "currentMemory").expect("<currentMemory>");
+
+    let mut mem = CurrentMemory::from_element(&doc, mem_el);
+    mem.value = Some("2097152".to_string());
+    mem.write_to(&mut doc, mem_el);
+
+    let out = doc.write_str().expect("serializes");
+    assert!(out.contains(">2097152<"));
+    assert!(!out.contains(">1048576<"));
+    // Editing the text field didn't disturb the attribute field.
+    assert!(out.contains(r#"unit="KiB""#));
+}
+
+#[test]
+fn guest_reads_description_and_title_via_path_plus_text() {
+    let doc = parse_libvirt_xml(FIXTURE).expect("fixture parses");
+    let root = doc.root_element().expect("root element");
+
+    let guest = Guest::from_element(&doc, root);
+    assert_eq!(guest.title, Some("My Test VM".to_string()));
+    assert_eq!(
+        guest.description,
+        Some("A VM used for testing.".to_string())
+    );
+}
+
+#[test]
+fn guest_missing_description_reads_as_none() {
+    let doc = parse_libvirt_xml(r#"<domain type="qemu"><name>bare</name></domain>"#)
+        .expect("fixture parses");
+    let root = doc.root_element().expect("root element");
+
+    let guest = Guest::from_element(&doc, root);
+    assert_eq!(guest.description, None);
+    assert_eq!(guest.title, None);
+}
+
+#[test]
+fn writing_a_new_description_creates_only_that_element() {
+    let mut doc =
+        parse_libvirt_xml(r#"<domain type="qemu"><name>bare</name><clock offset="utc"/></domain>"#)
+            .expect("fixture parses");
+    let root = doc.root_element().expect("root element");
+
+    let guest = Guest {
+        description: Some("Added after the fact.".to_string()),
+        ..Default::default()
+    };
+    guest.write_to(&mut doc, root);
+
+    let out = doc.write_str().expect("serializes");
+    assert!(out.contains("<description>Added after the fact.</description>"));
+    // No <title> was created — only the field that was actually set.
+    assert!(!out.contains("<title"));
+    // Pre-existing, unrelated content is untouched.
+    assert!(out.contains("<name>bare</name>"));
+    assert!(out.contains(r#"offset="utc""#));
 }

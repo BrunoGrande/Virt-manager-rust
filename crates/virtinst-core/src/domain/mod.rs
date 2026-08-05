@@ -10,5 +10,8 @@
 pub mod clock;
 pub use clock::Clock;
 
+pub mod memory;
+pub use memory::CurrentMemory;
+
 // TODO: the rest (cpu, os, features, seclabel, sysinfo, vcpus, pm,
 // numatune, memtune, xmlnsqemu, ...).

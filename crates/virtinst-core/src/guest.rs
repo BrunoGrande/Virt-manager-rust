@@ -14,9 +14,25 @@
 //!   is the path that has to satisfy ticket 03's acceptance bar —
 //!   byte-exact preservation of untouched XML, including foreign
 //!   `xmlns:qemu` elements.
+//!
+//! `description`/`title` are the first real fields on this struct — a
+//! `path` + `text` binding (`<domain><description>…</description>` is a
+//! child element's text content, not an attribute on `<domain>` itself)
+//! against the most natural real home for it. The rest — devices,
+//! per-domain-subsystem structs, `<devices>`/`<name>`/etc. — follows the
+//! same pattern as each of those gets implemented.
 
-// TODO: derive-macro-driven typed struct, once the macro itself exists.
+use virtinst_xml::XmlBound;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, XmlBound)]
+#[xml(tag = "domain")]
 pub struct Guest {
-    // devices: devices::DeviceList,
-    // domain: domain::DomainConfig,
+    #[xml(path = "description", text)]
+    pub description: Option<String>,
+
+    #[xml(path = "title", text)]
+    pub title: Option<String>,
+    // TODO: name (text), uuid (text), devices: DeviceList, and the
+    // domain-subsystem structs (Clock, CurrentMemory, ...) as each
+    // gets its own struct.
 }

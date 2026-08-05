@@ -3,22 +3,25 @@
 //! (ticket 06's "typed structs bound to XPaths via a derive macro,
 //! operating over a mutable order-preserving DOM" decision).
 //!
-//! Two field kinds:
+//! Three field kinds:
 //!
 //! ```ignore
 //! #[derive(XmlBound)]
-//! #[xml(tag = "disk")]
-//! struct DeviceDisk {
-//!     #[xml(attribute = "type")]
-//!     disk_type: Option<String>,
+//! #[xml(tag = "currentMemory")]
+//! struct CurrentMemory {
+//!     #[xml(attribute = "unit")]
+//!     unit: Option<String>,
 //!
-//!     #[xml(path = "source", attribute = "file")]
-//!     source_file: Option<String>,
+//!     #[xml(text)]                    // the element's own text content
+//!     value: Option<String>,
 //! }
 //!
 //! #[derive(XmlBound)]
-//! #[xml(tag = "devices")]
-//! struct DeviceList {
+//! #[xml(tag = "domain")]
+//! struct Guest {
+//!     #[xml(path = "description", text)]   // a child element's text
+//!     description: Option<String>,
+//!
 //!     #[xml(list)]
 //!     disks: Vec<DeviceDisk>,
 //! }
@@ -29,9 +32,17 @@
 //! and created with `Element::new` + `push_child` on write if missing —
 //! never touching anything else already in the document, which is the
 //! entire point (ticket 03's round-trip/preservation acceptance bar).
-//! `list` fields can take a `path` too, for a container one level down
-//! (e.g. `#[xml(path = "devices", list)]` if the `Vec` field lives
-//! directly on `Guest` rather than a `DeviceList` wrapper struct).
+//! `attribute`, `text`, and `list` fields can all take a `path`.
+//!
+//! **`text` caveat, not a footgun to discover at runtime:** `edit_xml`'s
+//! `set_text_content` clears *all* children of the target element
+//! (including comments/CDATA, not just prior text) before inserting the
+//! new text node. Fine for the leaf-text elements libvirt XML actually
+//! uses this for (`<description>`, `<title>`, `<currentMemory>`'s
+//! value, …) — none of those mix text content with child elements or
+//! comments in practice — but `#[xml(text)]` on an element that *does*
+//! have other children would silently drop them. Don't put `text` on a
+//! field whose element also has structural children.
 //!
 //! `list` fields are **read-only** through this trait: `from_element`
 //! collects every `T::TAG` child into the `Vec`, but `write_to`
@@ -39,12 +50,6 @@
 //! `virtinst_xml::list_add`/`list_remove` against specific elements
 //! instead — see that module's docs for why a whole-Vec reconcile-on-
 //! write was deliberately not built.
-//!
-//! Scope of this slice: `attribute` (optionally under `path`) and
-//! `list`. `#[xml(text)]` for text-content fields is designed for (see
-//! ticket 06's issue file) but not implemented yet — an unrecognized
-//! field attribute is a compile error, not a silent no-op, so that gap
-//! is loud rather than a footgun.
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -61,6 +66,7 @@ pub fn derive_xml_bound(input: TokenStream) -> TokenStream {
 
 enum FieldKind {
     Attribute { attribute: String },
+    Text,
     List { item_ty: Type },
 }
 
@@ -103,6 +109,13 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                         .and_then(|__target| __target.attribute(__doc, #attribute))
                 )
             },
+            FieldKind::Text => quote! {
+                #ident: {
+                    let __text = ::virtinst_xml::resolve_path(__doc, __el, &[#(#segs),*])
+                        .map(|__target| __target.text_content(__doc));
+                    ::virtinst_xml::XmlAttrValue::from_attr(__text.as_deref())
+                }
+            },
             FieldKind::List { item_ty } => quote! {
                 #ident: ::virtinst_xml::list_read::<#item_ty>(__doc, __el, &[#(#segs),*])
             },
@@ -117,6 +130,12 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 if let Some(__value) = ::virtinst_xml::XmlAttrValue::to_attr(&self.#ident) {
                     let __target = ::virtinst_xml::resolve_or_create_path(__doc, __el, &[#(#segs),*]);
                     __target.set_attribute(__doc, #attribute, __value);
+                }
+            }),
+            FieldKind::Text => Some(quote! {
+                if let Some(__value) = ::virtinst_xml::XmlAttrValue::to_attr(&self.#ident) {
+                    let __target = ::virtinst_xml::resolve_or_create_path(__doc, __el, &[#(#segs),*]);
+                    __target.set_text_content(__doc, __value);
                 }
             }),
             // list fields are read-only through XmlBound — see the
@@ -168,8 +187,8 @@ fn struct_tag(input: &DeriveInput) -> syn::Result<String> {
     ))
 }
 
-/// Pulls `#[xml(attribute = "...")]` or `#[xml(list)]` — each optionally
-/// with `path = "..."` — off one field.
+/// Pulls `#[xml(attribute = "...")]`, `#[xml(text)]`, or `#[xml(list)]`
+/// — each optionally with `path = "..."` — off one field.
 fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
     let ident = field
         .ident
@@ -179,6 +198,7 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
     let mut path = String::new();
     let mut attribute = None;
     let mut is_list = false;
+    let mut is_text = false;
 
     for attr in &field.attrs {
         if !attr.path().is_ident("xml") {
@@ -197,13 +217,11 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
                 is_list = true;
                 Ok(())
             } else if meta.path.is_ident("text") {
-                Err(meta.error(
-                    "#[xml(text)] is designed but not implemented yet — see \
-                     virtinst-xml-derive's crate docs",
-                ))
+                is_text = true;
+                Ok(())
             } else {
                 Err(meta.error(
-                    "expected `attribute = \"...\"`, `list`, and/or `path = \"...\"`",
+                    "expected `attribute = \"...\"`, `text`, `list`, and/or `path = \"...\"`",
                 ))
             }
         })?;
@@ -215,14 +233,26 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
         path.split('/').map(str::to_string).collect()
     };
 
-    let kind = match (is_list, attribute) {
-        (true, Some(_)) => {
+    let kind = match (is_list, is_text, attribute) {
+        (true, true, _) => {
+            return Err(syn::Error::new_spanned(
+                &ident,
+                "a field can't be both `list` and `text` — pick one",
+            ));
+        }
+        (true, false, Some(_)) => {
             return Err(syn::Error::new_spanned(
                 &ident,
                 "a field can't be both `list` and `attribute` — pick one",
             ));
         }
-        (true, None) => {
+        (false, true, Some(_)) => {
+            return Err(syn::Error::new_spanned(
+                &ident,
+                "a field can't be both `text` and `attribute` — pick one",
+            ));
+        }
+        (true, false, None) => {
             let item_ty = vec_item_type(&field.ty).ok_or_else(|| {
                 syn::Error::new_spanned(
                     &field.ty,
@@ -231,12 +261,13 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
             })?;
             FieldKind::List { item_ty }
         }
-        (false, Some(attribute)) => FieldKind::Attribute { attribute },
-        (false, None) => {
+        (false, true, None) => FieldKind::Text,
+        (false, false, Some(attribute)) => FieldKind::Attribute { attribute },
+        (false, false, None) => {
             return Err(syn::Error::new_spanned(
                 &ident,
-                "field needs an #[xml(attribute = \"...\")] or #[xml(list)] binding \
-                 (optionally with `path = \"...\"`)",
+                "field needs an #[xml(attribute = \"...\")], #[xml(text)], or \
+                 #[xml(list)] binding (optionally with `path = \"...\"`)",
             ));
         }
     };
