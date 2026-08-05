@@ -1,7 +1,9 @@
 //! `#[derive(XmlBound)]` — generates an `impl virtinst_xml::XmlBound`
-//! that reads/writes struct fields as attributes on an `edit_xml`
-//! element (ticket 06's "typed structs bound to XPaths via a derive
-//! macro, operating over a mutable order-preserving DOM" decision).
+//! that reads/writes struct fields against an `edit_xml` element
+//! (ticket 06's "typed structs bound to XPaths via a derive macro,
+//! operating over a mutable order-preserving DOM" decision).
+//!
+//! Two field kinds:
 //!
 //! ```ignore
 //! #[derive(XmlBound)]
@@ -13,23 +15,40 @@
 //!     #[xml(path = "source", attribute = "file")]
 //!     source_file: Option<String>,
 //! }
+//!
+//! #[derive(XmlBound)]
+//! #[xml(tag = "devices")]
+//! struct DeviceList {
+//!     #[xml(list)]
+//!     disks: Vec<DeviceDisk>,
+//! }
 //! ```
 //!
 //! `path` is a `/`-separated chain of child-element names, resolved with
-//! `find()` on read (missing segment ⇒ the field reads as absent) and
-//! created with `Element::new` + `push_child` on write if missing —
+//! `find()` on read (missing segment ⇒ the field reads as absent/empty)
+//! and created with `Element::new` + `push_child` on write if missing —
 //! never touching anything else already in the document, which is the
 //! entire point (ticket 03's round-trip/preservation acceptance bar).
+//! `list` fields can take a `path` too, for a container one level down
+//! (e.g. `#[xml(path = "devices", list)]` if the `Vec` field lives
+//! directly on `Guest` rather than a `DeviceList` wrapper struct).
 //!
-//! Scope of this first slice: `attribute` (optionally under `path`)
-//! only. `#[xml(text)]` for text-content fields is designed for (see
+//! `list` fields are **read-only** through this trait: `from_element`
+//! collects every `T::TAG` child into the `Vec`, but `write_to`
+//! generates no code for them at all. Mutating a list goes through
+//! `virtinst_xml::list_add`/`list_remove` against specific elements
+//! instead — see that module's docs for why a whole-Vec reconcile-on-
+//! write was deliberately not built.
+//!
+//! Scope of this slice: `attribute` (optionally under `path`) and
+//! `list`. `#[xml(text)]` for text-content fields is designed for (see
 //! ticket 06's issue file) but not implemented yet — an unrecognized
 //! field attribute is a compile error, not a silent no-op, so that gap
 //! is loud rather than a footgun.
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, LitStr};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, GenericArgument, LitStr, PathArguments, Type};
 
 #[proc_macro_derive(XmlBound, attributes(xml))]
 pub fn derive_xml_bound(input: TokenStream) -> TokenStream {
@@ -40,10 +59,15 @@ pub fn derive_xml_bound(input: TokenStream) -> TokenStream {
     }
 }
 
+enum FieldKind {
+    Attribute { attribute: String },
+    List { item_ty: Type },
+}
+
 struct FieldBinding {
     ident: syn::Ident,
     path: Vec<String>,
-    attribute: String,
+    kind: FieldKind,
 }
 
 fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
@@ -72,24 +96,32 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let read_fields = bindings.iter().map(|b| {
         let ident = &b.ident;
         let segs = &b.path;
-        let attr = &b.attribute;
-        quote! {
-            #ident: ::virtinst_xml::XmlAttrValue::from_attr(
-                ::virtinst_xml::resolve_path(__doc, __el, &[#(#segs),*])
-                    .and_then(|__target| __target.attribute(__doc, #attr))
-            )
+        match &b.kind {
+            FieldKind::Attribute { attribute } => quote! {
+                #ident: ::virtinst_xml::XmlAttrValue::from_attr(
+                    ::virtinst_xml::resolve_path(__doc, __el, &[#(#segs),*])
+                        .and_then(|__target| __target.attribute(__doc, #attribute))
+                )
+            },
+            FieldKind::List { item_ty } => quote! {
+                #ident: ::virtinst_xml::list_read::<#item_ty>(__doc, __el, &[#(#segs),*])
+            },
         }
     });
 
-    let write_fields = bindings.iter().map(|b| {
+    let write_fields = bindings.iter().filter_map(|b| {
         let ident = &b.ident;
         let segs = &b.path;
-        let attr = &b.attribute;
-        quote! {
-            if let Some(__value) = ::virtinst_xml::XmlAttrValue::to_attr(&self.#ident) {
-                let __target = ::virtinst_xml::resolve_or_create_path(__doc, __el, &[#(#segs),*]);
-                __target.set_attribute(__doc, #attr, __value);
-            }
+        match &b.kind {
+            FieldKind::Attribute { attribute } => Some(quote! {
+                if let Some(__value) = ::virtinst_xml::XmlAttrValue::to_attr(&self.#ident) {
+                    let __target = ::virtinst_xml::resolve_or_create_path(__doc, __el, &[#(#segs),*]);
+                    __target.set_attribute(__doc, #attribute, __value);
+                }
+            }),
+            // list fields are read-only through XmlBound — see the
+            // crate-level docs for why. No code generated here at all.
+            FieldKind::List { .. } => None,
         }
     });
 
@@ -136,8 +168,8 @@ fn struct_tag(input: &DeriveInput) -> syn::Result<String> {
     ))
 }
 
-/// Pulls `#[xml(attribute = "...")]` / `#[xml(path = "...", attribute = "...")]`
-/// off one field.
+/// Pulls `#[xml(attribute = "...")]` or `#[xml(list)]` — each optionally
+/// with `path = "..."` — off one field.
 fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
     let ident = field
         .ident
@@ -146,6 +178,7 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
 
     let mut path = String::new();
     let mut attribute = None;
+    let mut is_list = false;
 
     for attr in &field.attrs {
         if !attr.path().is_ident("xml") {
@@ -160,23 +193,21 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
                 let value: LitStr = meta.value()?.parse()?;
                 path = value.value();
                 Ok(())
+            } else if meta.path.is_ident("list") {
+                is_list = true;
+                Ok(())
             } else if meta.path.is_ident("text") {
                 Err(meta.error(
                     "#[xml(text)] is designed but not implemented yet — see \
                      virtinst-xml-derive's crate docs",
                 ))
             } else {
-                Err(meta.error("expected `attribute = \"...\"` and/or `path = \"...\"`"))
+                Err(meta.error(
+                    "expected `attribute = \"...\"`, `list`, and/or `path = \"...\"`",
+                ))
             }
         })?;
     }
-
-    let attribute = attribute.ok_or_else(|| {
-        syn::Error::new_spanned(
-            &ident,
-            "field needs an #[xml(attribute = \"...\")] binding (optionally with `path = \"...\"`)",
-        )
-    })?;
 
     let path = if path.is_empty() {
         Vec::new()
@@ -184,9 +215,52 @@ fn field_binding(field: &syn::Field) -> syn::Result<FieldBinding> {
         path.split('/').map(str::to_string).collect()
     };
 
-    Ok(FieldBinding {
-        ident,
-        path,
-        attribute,
+    let kind = match (is_list, attribute) {
+        (true, Some(_)) => {
+            return Err(syn::Error::new_spanned(
+                &ident,
+                "a field can't be both `list` and `attribute` — pick one",
+            ));
+        }
+        (true, None) => {
+            let item_ty = vec_item_type(&field.ty).ok_or_else(|| {
+                syn::Error::new_spanned(
+                    &field.ty,
+                    "#[xml(list)] requires a Vec<T> field, where T: XmlBound",
+                )
+            })?;
+            FieldKind::List { item_ty }
+        }
+        (false, Some(attribute)) => FieldKind::Attribute { attribute },
+        (false, None) => {
+            return Err(syn::Error::new_spanned(
+                &ident,
+                "field needs an #[xml(attribute = \"...\")] or #[xml(list)] binding \
+                 (optionally with `path = \"...\"`)",
+            ));
+        }
+    };
+
+    Ok(FieldBinding { ident, path, kind })
+}
+
+/// Syntactic `Vec<T>` detection — a proc-macro sees only the written
+/// type, not its resolved identity, so this is a best-effort check on
+/// the last path segment (the standard approach; the same one serde and
+/// most other field-attribute derive macros use for this exact case).
+fn vec_item_type(ty: &Type) -> Option<Type> {
+    let Type::Path(type_path) = ty else {
+        return None;
+    };
+    let segment = type_path.path.segments.last()?;
+    if segment.ident != "Vec" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    args.args.iter().find_map(|arg| match arg {
+        GenericArgument::Type(inner) => Some(inner.clone()),
+        _ => None,
     })
 }

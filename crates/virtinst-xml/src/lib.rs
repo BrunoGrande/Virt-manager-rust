@@ -99,3 +99,53 @@ pub fn resolve_or_create_path(
     }
     current
 }
+
+/// Repeated child elements — `#[xml(list)]` on a `Vec<T>` field, e.g.
+/// `Vec<DeviceDisk>` under a `<devices>` container. Deliberately
+/// **not** a `write_to`/reconcile-a-Vec design: nothing in this project
+/// ever needs "take a whole new list, diff it against the document" —
+/// every real usage (tickets 10/12: Add Hardware, Remove Device) is a
+/// single item added or removed against a live DOM. A bulk rewrite
+/// would also actively fight the preservation guarantee, regenerating
+/// elements (and losing any of *their* attributes this crate doesn't
+/// model) even for logically-unchanged items. So: [`list_read`]
+/// collects owned values, [`list_add`]/[`list_remove`] mutate one
+/// element at a time, reusing existing elements in place rather than
+/// ever clearing and rebuilding the list.
+pub fn list_read<T: XmlBound>(doc: &Document, container: Element, path: &[&str]) -> Vec<T> {
+    match resolve_path(doc, container, path) {
+        Some(list_parent) => list_parent
+            .find_all(doc, T::TAG)
+            .into_iter()
+            .map(|el| T::from_element(doc, el))
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// Appends one new `T` as a child of `container` (creating `path` under
+/// it first if missing, same as [`resolve_or_create_path`]), writes
+/// `item`'s bound fields into the new element, and returns it — callers
+/// that need to track the specific element (e.g. to remove it later)
+/// get the handle back rather than having to re-find it.
+pub fn list_add<T: XmlBound>(
+    doc: &mut Document,
+    container: Element,
+    path: &[&str],
+    item: &T,
+) -> Element {
+    let list_parent = resolve_or_create_path(doc, container, path);
+    let el = Element::new(doc, T::TAG);
+    list_parent
+        .push_child(doc, el)
+        .expect("a freshly-created detached element always attaches cleanly");
+    item.write_to(doc, el);
+    el
+}
+
+/// Removes one element (typically one previously returned by
+/// [`list_read`] or [`list_add`]) from its parent, touching nothing
+/// else in the document.
+pub fn list_remove(doc: &mut Document, item: Element) -> Result<()> {
+    item.detach(doc)
+}
