@@ -43,6 +43,7 @@ map's tickets are resolved.
 - [GTK4 console-widget availability](./issues/01-gtk4-console-widget-availability.md) — no: neither `gtk-vnc` nor `spice-gtk` has a GTK4 build, on any mainstream distro. A `gtk4-rs` UI gets no free console widget either — kills the main premise for choosing it over `egui` on that basis. Ticket 05 is now unblocked.
 - [virt crate API coverage](./issues/02-virt-crate-api-coverage.md) — full coverage of migration/snapshots/nodedev/secrets/storage/capabilities; the one gap is domain/network/nodedev/secret/storage-pool event registration, fixable with a small unsafe FFI shim (not a wholesale raw-FFI project). Ticket 06 still blocked on ticket 03.
 - [Upstream test suite inventory](./issues/03-upstream-test-suite-inventory.md) — ~316 golden-XML fixtures (254 CLI compare + 62 xmlparse round-trip) spanning QEMU/KVM/Xen/LXC/Virtuozzo/bhyve/HVF and a wide OS/device matrix; this is the acceptance-bar corpus for the Rust port. Ticket 06 is now unblocked.
+- [libosinfo bindgen feasibility](./issues/04-libosinfo-bindgen-feasibility.md) — practical: pure GObject C API, no GTK in the link chain, tiny init sequence, osinfo-db is a separately-versioned distro-installed data package with its own update tooling. Feeds the OS-detection/create-VM-wizard fog once tickets 05/06 land.
 
 ## Not yet specified
 
