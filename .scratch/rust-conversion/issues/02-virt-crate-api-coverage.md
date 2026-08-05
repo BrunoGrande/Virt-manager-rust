@@ -38,3 +38,20 @@ trampoline, mirroring the pattern `virt`'s own `src/event.rs` already uses
 internally) is sufficient to unblock live domain-event notifications
 without falling back to polling. Full findings, method, and per-area
 evidence: [`docs/research/virt-crate-coverage.md`](../../../docs/research/virt-crate-coverage.md).
+
+**Amendment (from ticket 09's research):** upstream doesn't hand-roll an
+event shim at all — `virtmanager.py` calls `LibvirtGLib.init()` +
+`LibvirtGLib.event_register()` from `libvirt-glib`, a small official
+companion C library (installed and `gir`-bound on this machine:
+`gir1.2-libvirt-glib-1.0`, pure GObject/GLib, no GTK in the link chain so
+none of ticket 01's binding risk applies). Its `LibvirtGObject` module goes
+further than just pumping the loop: `Connection` has `domain-added`/
+`domain-removed` signals and `Domain` has `started`/`stopped` signals —
+real GObject-signal coverage of the live-UI-update use case this gap was
+about, potentially reducing or eliminating the proposed unsafe FFI shim for
+the domain-lifecycle subset (a quick attribute scan didn't turn up
+finer-grained signals like reboot/RTC-change, so this may not be total
+coverage — worth a closer look whenever the connection layer is actually
+built). Binding `libvirt-glib` via `gir` (matching ticket 04's `libosinfo`
+approach) is the likely better path than the hand-written shim for however
+much of the gap it covers.
