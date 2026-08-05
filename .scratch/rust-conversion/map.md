@@ -46,19 +46,15 @@ map's tickets are resolved.
 - [Upstream test suite inventory](./issues/03-upstream-test-suite-inventory.md) — ~316 golden-XML fixtures (254 CLI compare + 62 xmlparse round-trip) spanning QEMU/KVM/Xen/LXC/Virtuozzo/bhyve/HVF and a wide OS/device matrix; this is the acceptance-bar corpus for the Rust port. Ticket 06 is now unblocked.
 - [libosinfo bindgen feasibility](./issues/04-libosinfo-bindgen-feasibility.md) — practical: pure GObject C API, no GTK in the link chain, tiny init sequence, osinfo-db is a separately-versioned distro-installed data package with its own update tooling. Feeds the OS-detection/create-VM-wizard fog once tickets 05/06 land.
 - [GUI toolkit choice](./issues/05-gui-toolkit-choice.md) — `gtk4-rs`: neither toolkit gets a free console widget (ticket 01), which cancels out both the "free widget" case for `gtk4-rs` and the "avoid GtkVnc/SpiceClientGtk binding risk" case for `egui`; on the remaining ~95% of the app, `gtk4-rs` gets close-GTK-match fidelity (theming, HIG, AT-SPI) by construction. Console rendering: pure-Rust protocol crates (`vnc-rs`/`rust-vnc`, `spice-client`) first, escalating a channel to gir-bound `libgvnc`/`libspice-client-glib` only if that crate can't deliver a required parity feature — full per-channel specifics deferred to the console-viewer GUI-screen ticket.
-- [XML modeling approach](./issues/06-xml-modeling-approach.md) — typed structs bound to XPaths via a derive macro, reading/writing through a mutable order-preserving DOM built on the `edit-xml` crate. Neither original option alone satisfies ticket 03's acceptance bar (byte-exact round-trip of untouched XML, `virt-xml --edit` preserving foreign `xmlns:qemu` elements) without converging here anyway — this gets Rust compile-time field safety plus upstream's preserve-the-rest-of-the-document behavior, without porting xmlbuilder.py's runtime dynamic-dispatch descriptor engine. All tickets now resolved.
+- [XML modeling approach](./issues/06-xml-modeling-approach.md) — typed structs bound to XPaths via a derive macro, reading/writing through a mutable order-preserving DOM built on the `edit-xml` crate. Neither original option alone satisfies ticket 03's acceptance bar (byte-exact round-trip of untouched XML, `virt-xml --edit` preserving foreign `xmlns:qemu` elements) without converging here anyway — this gets Rust compile-time field safety plus upstream's preserve-the-rest-of-the-document behavior, without porting xmlbuilder.py's runtime dynamic-dispatch descriptor engine.
+- [GUI screen inventory](./issues/07-gui-screen-inventory.md) — the map's 15-screen list is really 17 top-level screens (`docs/research/gui-screen-inventory.md` has the full `.ui`-to-controller table) plus a 13-item shared sub-widget layer the original list missed. Inventory only, no per-screen specs yet — those are separate tickets, opened as needed.
 
 ## Not yet specified
 
+- Per-screen specs for the 17 screens + 13 shared widgets ticket 07 located — biggest/riskiest first: Create VM wizard, VM details window, Add Hardware wizard, VM Manager main window.
 - Console-viewer implementation specifics (per-channel breakdown of the
   pure-Rust-first / gir-fallback approach decided in ticket 05, fallback
   triggers) — needs its own ticket once GUI-screen work starts.
-- Every individual GUI screen: connection manager, VM manager main window,
-  VM details tabs, add-hardware wizard, create-VM wizard, clone dialog,
-  migrate dialog, host storage tab, host network tab, snapshot management,
-  delete-VM dialog, preferences, XML editor tab, systray, about dialog —
-  now unblocked by tickets 05 and 06; needs its own tickets to spec each
-  screen.
 - `virtinst-core` module/crate boundaries (domain/storage/network/nodedev
   XML layer per ticket 06, device-default logic, the event-registration FFI
   shim per ticket 02) — needs its own ticket to lay out the crate structure.
