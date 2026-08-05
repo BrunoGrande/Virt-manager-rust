@@ -2,7 +2,7 @@
 id: 13
 title: VM Manager main window
 type: grilling
-status: open
+status: resolved
 blocked_by: [07, 09, 10]
 claimed_by: null
 ---
@@ -19,7 +19,7 @@ details for a VM row, reconnects a disconnected connection, or opens
 Host details (`host.py` — cataloged by ticket 07, not yet its own ticket)
 for a connected one.
 
-## Resolution (partial — one fork below needs a call before this can close)
+## Resolution
 
 Most of this is already settled by precedent, verified against source
 rather than assumed:
@@ -46,19 +46,29 @@ directly rather than assume): `Gtk.TreeView`/`Gtk.TreeStore`/
 That means this isn't a forced migration; there's a genuine choice with no
 precedent-covered answer:
 
-1. **Port `TreeStore`/`TreeView`/`CellRendererSparkline` close to 1:1** —
-   smallest diff from upstream's actual mechanism, reuses a widget
-   `gtk4-rs` still exposes, but it's a deprecated API surface for a
-   Rust codebase starting fresh in 2026.
-2. **Migrate to `GtkListView` + `GtkTreeListModel` + `GtkTreeExpander`**
-   (GTK4's modern tree-list mechanism) with a custom
-   `GtkListItemFactory`/widget standing in for the sparkline cell
-   renderer — the "not deprecated" answer, but real new complexity
-   (`TreeListModel`'s tree-flattening semantics, factory bind/unbind
-   lifecycle) that no other ticket in this map has had to design yet,
-   for the one screen in the whole app that's a genuine two-level tree
-   rather than the flat lists tickets 10/11 already settled.
+1. Port `TreeStore`/`TreeView`/`CellRendererSparkline` close to 1:1 —
+   smallest diff from upstream's actual mechanism, but deprecated API for
+   a Rust codebase starting fresh in 2026.
+2. **Migrate to `GtkListView` + `GtkTreeListModel` + `GtkTreeExpander`.**
+   **Chosen.** Not deprecated, matches the project's own general lean
+   (ticket 05 picked `gtk4-rs` specifically for close-fidelity/long-term
+   fit, not smallest-diff-from-Python) at the cost of new machinery no
+   other ticket has needed yet.
 
-Not deciding this one by precedent-matching or unilaterally — flagging it
-back rather than guessing at a call that's really about how much
-deprecated-API debt this project wants to start with.
+**Shape.** `GtkTreeListModel` wraps a root `GListModel` of connections;
+each connection row supplies a child-model factory returning a
+`GListModel` of its VMs (empty for a connection with no VMs, `None` for a
+VM row — `TreeListModel` uses that to know a row is a leaf). One
+`GtkListItemFactory` binds each row: a `GtkTreeExpander` provides the
+disclosure triangle and indentation `TreeView`'s `set_level_indentation`
+did by hand, wrapping a row-content widget that switches between
+"connection row" (name + connection-state text) and "VM row" (name +
+status icon + OS-inspection icon + the sparkline) based on which the
+bound `GtkTreeListRow`'s item actually is. The sparkline itself becomes a
+small custom widget (`GtkWidget` subclass drawing via `Snapshot`/`cairo`
+in its own `snapshot()` vfunc) standing in for `CellRendererSparkline` —
+same rendering logic ported, different embedding mechanism (a real child
+widget in the factory's bound row, not a cell renderer attribute).
+Toggleable stat columns become additional `GtkColumnView` columns if the
+per-column toggle behavior is worth keeping, or folded into one row
+widget if not — left as an implementation call, not an architectural one.
