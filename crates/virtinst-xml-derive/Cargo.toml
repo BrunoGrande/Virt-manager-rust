@@ -1,0 +1,16 @@
+[package]
+name = "virtinst-xml-derive"
+description = "The #[derive(XmlBound)] proc-macro backing ticket 06's XPath-binding approach — see virtinst-xml for the runtime half."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"

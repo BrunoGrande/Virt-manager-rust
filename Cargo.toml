@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/virtinst-core", "crates/virt-manager", "crates/virtinst-cli"]
+members = [
+    "crates/virtinst-xml-derive",
+    "crates/virtinst-xml",
+    "crates/virtinst-core",
+    "crates/virt-manager",
+    "crates/virtinst-cli",
+]
 
 # See .scratch/rust-conversion/map.md and its issues/ for the decisions
 # this workspace shape encodes — ticket 15 in particular (crate/module

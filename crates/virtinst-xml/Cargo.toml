@@ -1,0 +1,12 @@
+[package]
+name = "virtinst-xml"
+description = "Runtime half of ticket 06's XPath-binding approach: the XmlBound/XmlAttrValue traits and path-resolution helpers the #[derive(XmlBound)] macro (virtinst-xml-derive) generates code against, over an edit_xml order-preserving DOM."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+edit-xml = "0.1.0"
+virtinst-xml-derive = { path = "../virtinst-xml-derive" }

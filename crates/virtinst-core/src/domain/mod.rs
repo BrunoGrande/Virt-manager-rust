@@ -7,5 +7,8 @@
 //! foreign-namespace preservation is exactly what makes the DOM
 //! approach necessary in the first place (ticket 03's acceptance bar).
 
-// TODO: one module per domain subsystem (cpu, os, clock, features,
-// seclabel, sysinfo, vcpus, pm, numatune, memtune, ...).
+pub mod clock;
+pub use clock::Clock;
+
+// TODO: the rest (cpu, os, features, seclabel, sysinfo, vcpus, pm,
+// numatune, memtune, xmlnsqemu, ...).

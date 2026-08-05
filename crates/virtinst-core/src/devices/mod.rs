@@ -12,11 +12,10 @@
 //! shape), not a driver-strategy trait. Only ~9 of these files actually
 //! branch on driver family upstream; this isn't a pervasive concern.
 
-// TODO: one module per device type, e.g.:
-// pub mod disk;
-// pub mod network;
-// pub mod graphics;
-// ... (see docs/research/gui-screen-inventory.md and ticket 12 for the
-// full 17-variant list: Disk, Controller, Network, Input, Graphics,
-// Sound, Hostdev, Char, Video, Watchdog, Filesystem, Smartcard,
-// UsbRedir, Tpm, Rng, Panic, Vsock)
+pub mod disk;
+pub use disk::DeviceDisk;
+
+// TODO: the remaining 16 variants (see docs/research/gui-screen-inventory.md
+// and ticket 12's NewDevice enum): Controller, Network, Input, Graphics,
+// Sound, Hostdev, Char, Video, Watchdog, Filesystem, Smartcard, UsbRedir,
+// Tpm, Rng, Panic, Vsock.

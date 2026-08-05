@@ -20,3 +20,6 @@ pub mod osinfo;
 
 mod guest;
 pub use guest::Guest;
+
+#[cfg(test)]
+mod xml_binding_tests;

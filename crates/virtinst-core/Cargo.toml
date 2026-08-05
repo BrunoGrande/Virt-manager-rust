@@ -8,8 +8,10 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
-# virt = "*"          # libvirt bindings (ticket 02) — pin once a toolchain is available to check current major version.
-# edit-xml = "*"       # order-preserving XML DOM (ticket 06) — backs the editable domain/device XML surface.
+# virtinst-xml re-exports edit_xml's Document/Element (ticket 06) — no
+# need for a direct edit-xml dependency alongside it.
+virtinst-xml = { version = "0.1.0", path = "../virtinst-xml" }
+# virt = "*"          # libvirt bindings (ticket 02) — pin once needed.
 #
 # gir-generated, not yet vendored/generated (tickets 04, 09, 17):
 #   - libvirt-glib event-loop + Connection/Domain signals
