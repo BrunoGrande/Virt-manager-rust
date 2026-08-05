@@ -67,9 +67,7 @@ map's tickets are resolved.
 ## Not yet specified
 
 - Per-screen specs for the remaining 12 screens + 13 shared widgets ticket 07 located.
-- Console-viewer implementation specifics (per-channel breakdown of the
-  pure-Rust-first / gir-fallback approach decided in ticket 05, fallback
-  triggers) — needs its own ticket once GUI-screen work starts.
+- [Console-viewer implementation specifics](./issues/14-console-viewer-specifics.md) — ticket 14, partially resolved. Settled: SSH tunneling is just shelling out to the system `ssh` binary (`os.fork`+`os.execlp`, verified in `sshtunnels.py`), no crate needed. Checked the actual crates rather than trusting ticket 05's names: `spice-client`'s escalation to gir-bound `libspice-client-glib` is triggered *today*, not hypothetically — audio/clipboard/USB-redirect are unimplemented and upstream genuinely uses all three. VNC is a real open fork: `vnc-rs` is active and capable but `tokio`-based, conflicting with ticket 09's no-async-runtime decision; `whitequark/rust-vnc` is sync but its own README admits no auth/encryption at all. Needs your call.
 - `virtinst-core` module/crate boundaries (domain/storage/network/nodedev
   XML layer per ticket 06, device-default logic, the `libvirt-glib` event
   binding per tickets 02/09, where the shared async/progress-modal wrapper
