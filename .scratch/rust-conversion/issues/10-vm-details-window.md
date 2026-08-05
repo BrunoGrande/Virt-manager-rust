@@ -53,6 +53,17 @@ architecture. Two things explicitly carved out:
   live/persistent split is that not-yet-opened ticket's problem, not this
   screen's.
 
+**Amendment (from ticket 12's research):** ticket 12 found the concrete
+shape of this duality in `addhardware.py`'s `_add_device` — not a single
+`AFFECT_LIVE|AFFECT_CONFIG` flag, but two explicit calls: attempt
+`attach_device()` (live hotplug) if the domain is active, degrade to
+"apply after next shutdown" with a user confirm on failure, then *always*
+also call `add_device()` for the persistent config. Whether this exact
+two-call pattern holds for field *edits* (this ticket) the same way it
+does for device *addition* (ticket 12) is worth confirming when
+`virtinst-core` actually gets designed, but it's the working hypothesis
+now rather than an open unknown.
+
 Console viewer and XML editor tab were already settled elsewhere (ticket
 05's deferred console-viewer ticket; ticket 07's shared-widget catalog,
 respectively) — not re-litigated here.
