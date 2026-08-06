@@ -2,12 +2,13 @@
 //! domain. First real exercise of `#[xml(list)]`: `<disk>` can appear
 //! any number of times, unlike every field modeled so far.
 //!
-//! `disks`/`interfaces`/`graphics`/`controllers` are modeled so far,
-//! matching how many device types have their own struct
+//! `disks`/`interfaces`/`graphics`/`controllers`/`inputs` are modeled so
+//! far, matching how many device types have their own struct
 //! ([`super::DeviceDisk`], [`super::DeviceNetwork`],
-//! [`super::DeviceGraphics`], [`super::DeviceController`]) — the
-//! remaining `NewDevice` variants (ticket 12) get their own `Vec<T>`
-//! field here as each one is implemented, same pattern.
+//! [`super::DeviceGraphics`], [`super::DeviceController`],
+//! [`super::DeviceInput`]) — the remaining `NewDevice` variants (ticket
+//! 12) get their own `Vec<T>` field here as each one is implemented,
+//! same pattern.
 //!
 //! Every `list` field is populated by
 //! [`virtinst_xml::XmlBound::from_element`] but not written back through
@@ -18,7 +19,7 @@
 //! 12's Add Hardware and ticket 10's Remove Device are both single-item
 //! operations against a live DOM.
 
-use super::{DeviceController, DeviceDisk, DeviceGraphics, DeviceNetwork};
+use super::{DeviceController, DeviceDisk, DeviceGraphics, DeviceInput, DeviceNetwork};
 use virtinst_xml::XmlBound;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, XmlBound)]
@@ -35,4 +36,7 @@ pub struct DeviceList {
 
     #[xml(list)]
     pub controllers: Vec<DeviceController>,
+
+    #[xml(list)]
+    pub inputs: Vec<DeviceInput>,
 }

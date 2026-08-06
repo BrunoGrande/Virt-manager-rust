@@ -6,7 +6,9 @@
 //! foreign `xmlns:qemu` elements), exercised directly rather than
 //! assumed to work because the macro compiles.
 
-use crate::devices::{DeviceController, DeviceDisk, DeviceGraphics, DeviceList, DeviceNetwork};
+use crate::devices::{
+    DeviceController, DeviceDisk, DeviceGraphics, DeviceInput, DeviceList, DeviceNetwork,
+};
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
 use virtinst_xml::{parse_libvirt_xml, XmlBound};
@@ -37,6 +39,7 @@ const FIXTURE: &str = r#"<domain type="qemu">
     <controller type="scsi" index="0" model="virtio-scsi">
       <driver queues="4"/>
     </controller>
+    <input type="tablet" bus="usb"/>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -168,6 +171,24 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.controllers[0].controller_type, Some("scsi".into()));
     assert_eq!(devices.controllers[0].index, Some(0));
     assert_eq!(devices.controllers[0].driver_queues, Some(4));
+
+    assert_eq!(devices.inputs.len(), 1);
+    assert_eq!(devices.inputs[0].input_type, Some("tablet".into()));
+    assert_eq!(devices.inputs[0].bus, Some("usb".into()));
+}
+
+#[test]
+fn input_reads_nested_source_fields() {
+    let doc = parse_libvirt_xml(
+        r#"<input type="evdev" bus="virtio"><source dev="/dev/input/event1" grab="all"/></input>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let input = DeviceInput::from_element(&doc, el);
+    assert_eq!(input.source_dev, Some("/dev/input/event1".into()));
+    assert_eq!(input.source_grab, Some("all".into()));
+    assert_eq!(input.source_evdev, None);
 }
 
 #[test]
