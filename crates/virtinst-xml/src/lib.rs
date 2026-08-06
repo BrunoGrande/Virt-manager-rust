@@ -80,6 +80,27 @@ impl XmlAttrValue for Option<bool> {
     }
 }
 
+/// `is_int=True` attributes (upstream's `xmlbuilder.py` terminology) —
+/// `<controller index="0"/>`, `<graphics port="5900"/>`, etc. Unparsable
+/// or absent both read as `None`; not distinguished, same as every
+/// other field kind treats "couldn't get a value" here.
+///
+/// **Known gap, not yet needed:** libvirt XML also has an `on`/`off`
+/// boolean spelling (`is_onoff` in upstream, distinct from the
+/// `yes`/`no` spelling `bool`/`Option<bool>` handle here — e.g.
+/// `<controller><target hotplug="on"/></controller>`). No struct has
+/// needed it yet; add an `OnOff` wrapper type the same shape as this
+/// one when one does, rather than overloading `bool` to guess which
+/// spelling a given field wants.
+impl XmlAttrValue for Option<u32> {
+    fn from_attr(s: Option<&str>) -> Self {
+        s.and_then(|s| s.parse().ok())
+    }
+    fn to_attr(&self) -> Option<String> {
+        self.map(|n| n.to_string())
+    }
+}
+
 /// Walks a `/`-separated chain of child-element names from `current`,
 /// using `find()` at each step. An empty `segments` (a field bound
 /// directly on its own element, no `path`) returns `current` unchanged.

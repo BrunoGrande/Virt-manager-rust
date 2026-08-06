@@ -6,7 +6,7 @@
 //! foreign `xmlns:qemu` elements), exercised directly rather than
 //! assumed to work because the macro compiles.
 
-use crate::devices::{DeviceDisk, DeviceGraphics, DeviceList, DeviceNetwork};
+use crate::devices::{DeviceController, DeviceDisk, DeviceGraphics, DeviceList, DeviceNetwork};
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
 use virtinst_xml::{parse_libvirt_xml, XmlBound};
@@ -34,6 +34,9 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <link state="up"/>
     </interface>
     <graphics type="vnc" port="-1" autoport="yes" listen="127.0.0.1"/>
+    <controller type="scsi" index="0" model="virtio-scsi">
+      <driver queues="4"/>
+    </controller>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -160,6 +163,33 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.graphics[0].port, Some("-1".into()));
     assert_eq!(devices.graphics[0].autoport, Some(true));
     assert_eq!(devices.graphics[0].listen, Some("127.0.0.1".into()));
+
+    assert_eq!(devices.controllers.len(), 1);
+    assert_eq!(devices.controllers[0].controller_type, Some("scsi".into()));
+    assert_eq!(devices.controllers[0].index, Some(0));
+    assert_eq!(devices.controllers[0].driver_queues, Some(4));
+}
+
+#[test]
+fn integer_attributes_read_and_edit_correctly() {
+    let mut doc = parse_libvirt_xml(
+        r#"<controller type="scsi" index="0" model="virtio-scsi"/>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let mut controller = DeviceController::from_element(&doc, el);
+    assert_eq!(controller.index, Some(0));
+    assert_eq!(controller.driver_queues, None); // <driver> absent entirely
+
+    controller.index = Some(1);
+    controller.write_to(&mut doc, el);
+
+    let out = doc.write_str().expect("serializes");
+    assert!(out.contains(r#"index="1""#));
+    assert!(!out.contains(r#"index="0""#));
+    // driver_queues was never set — write_to must not invent <driver>.
+    assert!(!out.contains("<driver"));
 }
 
 #[test]
