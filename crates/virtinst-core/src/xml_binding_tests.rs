@@ -9,6 +9,7 @@
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
     DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
+    DeviceVsock,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -72,6 +73,9 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <rate bytes="1024" period="2000"/>
     </rng>
     <panic model="isa"/>
+    <vsock model="virtio">
+      <cid auto="no" address="3"/>
+    </vsock>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -264,6 +268,22 @@ fn list_read_collects_every_repeated_element() {
 
     assert_eq!(devices.panics.len(), 1);
     assert_eq!(devices.panics[0].model, Some("isa".into()));
+
+    assert_eq!(devices.vsocks.len(), 1);
+    assert_eq!(devices.vsocks[0].model, Some("virtio".into()));
+    assert_eq!(devices.vsocks[0].auto_cid, Some(false));
+    assert_eq!(devices.vsocks[0].cid, Some(3));
+}
+
+#[test]
+fn vsock_auto_cid_true_and_absent_cid_address() {
+    let doc = parse_libvirt_xml(r#"<vsock model="virtio"><cid auto="yes"/></vsock>"#)
+        .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let vsock = DeviceVsock::from_element(&doc, el);
+    assert_eq!(vsock.auto_cid, Some(true));
+    assert_eq!(vsock.cid, None);
 }
 
 #[test]
