@@ -4,17 +4,16 @@
 //!
 //! `disks`/`interfaces`/`graphics`/`controllers`/`inputs`/`sounds`/
 //! `filesystems`/`hostdevs`/`serials`/`tpms`/`rngs`/`panics`/`vsocks`/
-//! `watchdogs`/`smartcards` are modeled so far, matching how many device
-//! types have their own struct ([`super::DeviceDisk`],
+//! `watchdogs`/`smartcards`/`redirdevs` are modeled so far, matching how
+//! many device types have their own struct ([`super::DeviceDisk`],
 //! [`super::DeviceNetwork`], [`super::DeviceGraphics`],
 //! [`super::DeviceController`], [`super::DeviceInput`],
 //! [`super::DeviceSound`], [`super::DeviceFilesystem`],
 //! [`super::DeviceHostdev`], [`super::DeviceSerial`],
 //! [`super::DeviceTpm`], [`super::DeviceRng`], [`super::DevicePanic`],
 //! [`super::DeviceVsock`], [`super::DeviceWatchdog`],
-//! [`super::DeviceSmartcard`]) — the remaining `NewDevice` variants
-//! (ticket 12) get their own `Vec<T>` field here as each one is
-//! implemented, same pattern.
+//! [`super::DeviceSmartcard`], [`super::DeviceRedirdev`]) — `Video` is
+//! the last of the 17 `NewDevice` variants (ticket 12) left to model.
 //!
 //! Every `list` field is populated by
 //! [`virtinst_xml::XmlBound::from_element`] but not written back through
@@ -27,8 +26,8 @@
 
 use super::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSmartcard, DeviceSound, DeviceTpm,
-    DeviceVsock, DeviceWatchdog,
+    DeviceNetwork, DevicePanic, DeviceRedirdev, DeviceRng, DeviceSerial, DeviceSmartcard,
+    DeviceSound, DeviceTpm, DeviceVsock, DeviceWatchdog,
 };
 use virtinst_xml::XmlBound;
 
@@ -79,4 +78,7 @@ pub struct DeviceList {
 
     #[xml(list)]
     pub smartcards: Vec<DeviceSmartcard>,
+
+    #[xml(list)]
+    pub redirdevs: Vec<DeviceRedirdev>,
 }

@@ -57,10 +57,13 @@ pub use watchdog::DeviceWatchdog;
 pub mod smartcard;
 pub use smartcard::{Certificate, DeviceSmartcard};
 
+pub mod redirdev;
+pub use redirdev::DeviceRedirdev;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 2 variants (see docs/research/gui-screen-inventory.md
-// and ticket 12's NewDevice enum): Video, UsbRedir. Char's other three
-// tags (console/parallel/channel) share DeviceSerial's exact field set
-// under a different tag — same pattern, added when needed.
+// TODO: Video is the last of the 17 NewDevice variants (ticket 12) left
+// to model (see docs/research/gui-screen-inventory.md). Char's other
+// three tags (console/parallel/channel) share DeviceSerial's exact
+// field set under a different tag — same pattern, added when needed.

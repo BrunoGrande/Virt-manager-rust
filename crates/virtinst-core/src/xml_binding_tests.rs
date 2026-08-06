@@ -8,8 +8,8 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSmartcard, DeviceSound,
-    DeviceTpm, DeviceVsock, DeviceWatchdog,
+    DeviceList, DeviceNetwork, DevicePanic, DeviceRedirdev, DeviceRng, DeviceSerial,
+    DeviceSmartcard, DeviceSound, DeviceTpm, DeviceVsock, DeviceWatchdog,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -82,6 +82,9 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <certificate>cert2base64</certificate>
       <database>/etc/pki/nssdb</database>
     </smartcard>
+    <redirdev bus="usb" type="tcp">
+      <source mode="connect" host="localhost" service="4000"/>
+    </redirdev>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -301,6 +304,26 @@ fn list_read_collects_every_repeated_element() {
         devices.smartcards[0].certificates[1].value,
         Some("cert2base64".into())
     );
+
+    assert_eq!(devices.redirdevs.len(), 1);
+    assert_eq!(devices.redirdevs[0].bus, Some("usb".into()));
+    assert_eq!(devices.redirdevs[0].redirdev_type, Some("tcp".into()));
+    assert_eq!(devices.redirdevs[0].source_mode, Some("connect".into()));
+    assert_eq!(devices.redirdevs[0].source_host, Some("localhost".into()));
+    assert_eq!(devices.redirdevs[0].source_service, Some(4000));
+}
+
+#[test]
+fn redirdev_stub_case_has_no_source_at_all() {
+    let doc = parse_libvirt_xml(r#"<redirdev bus="usb" type="spicevmc"/>"#)
+        .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let redirdev = DeviceRedirdev::from_element(&doc, el);
+    assert_eq!(redirdev.bus, Some("usb".into()));
+    assert_eq!(redirdev.redirdev_type, Some("spicevmc".into()));
+    assert_eq!(redirdev.source_host, None);
+    assert_eq!(redirdev.source_service, None);
 }
 
 #[test]
