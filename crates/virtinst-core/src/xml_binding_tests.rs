@@ -8,8 +8,8 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
-    DeviceVsock, DeviceWatchdog,
+    DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSmartcard, DeviceSound,
+    DeviceTpm, DeviceVsock, DeviceWatchdog,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -77,6 +77,11 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <cid auto="no" address="3"/>
     </vsock>
     <watchdog model="i6300esb" action="reset"/>
+    <smartcard mode="host-certificates">
+      <certificate>cert1base64</certificate>
+      <certificate>cert2base64</certificate>
+      <database>/etc/pki/nssdb</database>
+    </smartcard>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -278,6 +283,48 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.watchdogs.len(), 1);
     assert_eq!(devices.watchdogs[0].model, Some("i6300esb".into()));
     assert_eq!(devices.watchdogs[0].action, Some("reset".into()));
+
+    assert_eq!(devices.smartcards.len(), 1);
+    assert_eq!(devices.smartcards[0].mode, Some("host-certificates".into()));
+    assert_eq!(
+        devices.smartcards[0].database,
+        Some("/etc/pki/nssdb".into())
+    );
+    // The genuinely new composition: a Vec<T> field living inside a
+    // device struct, not just at DeviceList's top level.
+    assert_eq!(devices.smartcards[0].certificates.len(), 2);
+    assert_eq!(
+        devices.smartcards[0].certificates[0].value,
+        Some("cert1base64".into())
+    );
+    assert_eq!(
+        devices.smartcards[0].certificates[1].value,
+        Some("cert2base64".into())
+    );
+}
+
+#[test]
+fn nested_list_field_composes_inside_a_device_struct() {
+    // Same list_read machinery DeviceList already uses, but this time
+    // the field lives on DeviceSmartcard itself - confirms the
+    // composition isn't special-cased to the top-level container.
+    let doc = parse_libvirt_xml(
+        r#"<smartcard mode="host-certificates">
+             <certificate>only-one</certificate>
+           </smartcard>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let smartcard = DeviceSmartcard::from_element(&doc, el);
+    assert_eq!(smartcard.certificates.len(), 1);
+    assert_eq!(smartcard.certificates[0].value, Some("only-one".into()));
+
+    // No <source>/<database> in this fixture - both read as None,
+    // proving the list field's presence doesn't interfere with sibling
+    // scalar fields on the same struct.
+    assert_eq!(smartcard.source_host, None);
+    assert_eq!(smartcard.database, None);
 }
 
 #[test]
