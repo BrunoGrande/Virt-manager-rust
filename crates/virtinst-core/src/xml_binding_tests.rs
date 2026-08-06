@@ -7,8 +7,8 @@
 //! assumed to work because the macro compiles.
 
 use crate::devices::{
-    DeviceController, DeviceDisk, DeviceGraphics, DeviceInput, DeviceList, DeviceNetwork,
-    DeviceSound,
+    DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceInput, DeviceList,
+    DeviceNetwork, DeviceSound,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -25,6 +25,7 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <driver name="qemu" type="qcow2"/>
       <source file="/old/path.qcow2"/>
       <target dev="vda" bus="virtio"/>
+      <shareable/>
     </disk>
     <disk type="file" device="cdrom">
       <target dev="hda" bus="ide"/>
@@ -44,6 +45,11 @@ const FIXTURE: &str = r#"<domain type="qemu">
     <sound model="ich9" multichannel="yes">
       <audio id="1"/>
     </sound>
+    <filesystem type="mount" accessmode="mapped">
+      <source dir="/host/share"/>
+      <target dir="/mnt/share"/>
+      <readonly/>
+    </filesystem>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -59,7 +65,8 @@ fn disk_edit_preserves_everything_else() {
     let disk_el = devices.find(&doc, "disk").expect("<disk>");
 
     // Read: every field lands correctly, including the three separate
-    // nested-element attribute groups (driver/source/target).
+    // nested-element attribute groups (driver/source/target) and the
+    // presence-based readonly/shareable/transient markers.
     let mut disk = DeviceDisk::from_element(&doc, disk_el);
     assert_eq!(disk, DeviceDisk {
         disk_type: Some("file".into()),
@@ -69,6 +76,9 @@ fn disk_edit_preserves_everything_else() {
         source_file: Some("/old/path.qcow2".into()),
         target_dev: Some("vda".into()),
         target_bus: Some("virtio".into()),
+        read_only: false,
+        shareable: true,
+        transient: false,
     });
 
     // Edit exactly one field.
@@ -81,11 +91,23 @@ fn disk_edit_preserves_everything_else() {
     assert!(out.contains(r#"file="/new/path.qcow2""#));
     assert!(!out.contains("/old/path.qcow2"));
 
-    // Every other disk field the struct also binds is untouched.
+    // Every other disk field the struct also binds is untouched,
+    // including <shareable/> — write_to for `present` fields must
+    // preserve true just as faithfully as it creates/removes on change.
     assert!(out.contains(r#"name="qemu""#));
     assert!(out.contains(r#"type="qcow2""#));
     assert!(out.contains(r#"dev="vda""#));
     assert!(out.contains(r#"bus="virtio""#));
+
+    // `present` fields specifically: re-read the same element rather
+    // than whole-document substring search — the fixture now has an
+    // unrelated <filesystem><readonly/></filesystem> elsewhere, so a
+    // bare `!out.contains("<readonly")` would (correctly) fail without
+    // this actually being a bug in this disk's own write_to.
+    let after = DeviceDisk::from_element(&doc, disk_el);
+    assert!(after.shareable, "write_to must preserve an untouched `present` field, not just create/remove on change");
+    assert!(!after.read_only);
+    assert!(!after.transient);
 
     // Content this struct never modeled at all survives verbatim —
     // the actual preservation guarantee, not just "the fields I know
@@ -184,6 +206,48 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.sounds[0].model, Some("ich9".into()));
     assert_eq!(devices.sounds[0].multichannel, Some(true));
     assert_eq!(devices.sounds[0].audio_id, Some("1".into()));
+
+    assert_eq!(devices.filesystems.len(), 1);
+    assert_eq!(devices.filesystems[0].source_dir, Some("/host/share".into()));
+    assert_eq!(devices.filesystems[0].target_dir, Some("/mnt/share".into()));
+    assert!(devices.filesystems[0].readonly);
+}
+
+#[test]
+fn present_field_toggles_element_existence_both_ways() {
+    // Starts with no <readonly/> at all.
+    let mut doc = parse_libvirt_xml(
+        r#"<filesystem type="mount"><source dir="/a"/><target dir="/b"/></filesystem>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let mut fs = DeviceFilesystem::from_element(&doc, el);
+    assert!(!fs.readonly);
+
+    // false -> true creates exactly the marker element.
+    fs.readonly = true;
+    fs.write_to(&mut doc, el);
+    let out = doc.write_str().expect("serializes");
+    assert!(out.contains("<readonly"));
+    assert!(out.contains(r#"dir="/a""#)); // untouched sibling content
+
+    // true -> false removes only that element, nothing else.
+    let mut fs = DeviceFilesystem::from_element(&doc, el);
+    assert!(fs.readonly);
+    fs.readonly = false;
+    fs.write_to(&mut doc, el);
+    let out = doc.write_str().expect("serializes");
+    assert!(!out.contains("<readonly"));
+    assert!(out.contains(r#"dir="/a""#));
+    assert!(out.contains(r#"dir="/b""#));
+
+    // Writing `false` when it was already absent is a harmless no-op,
+    // not an error.
+    let fs = DeviceFilesystem::from_element(&doc, el);
+    assert!(!fs.readonly);
+    fs.write_to(&mut doc, el);
+    assert!(!doc.write_str().expect("serializes").contains("<readonly"));
 }
 
 #[test]

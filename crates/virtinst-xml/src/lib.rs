@@ -138,6 +138,20 @@ pub fn resolve_or_create_path(
     current
 }
 
+/// Removes the element at `segments`, if it's there at all — the write
+/// half of `#[xml(present)]` fields (upstream's `is_bool=True`, e.g.
+/// `<disk><readonly/></disk>`: the marker element's *presence*, not its
+/// value, is the boolean). Only ever touches that one element, never
+/// its ancestors — even if removing it leaves an intermediate container
+/// empty, that container is left alone, since other fields may still
+/// depend on it existing or add to it later.
+pub fn remove_path_if_present(doc: &mut Document, current: Element, segments: &[&str]) -> Result<()> {
+    if let Some(target) = resolve_path(doc, current, segments) {
+        target.detach(doc)?;
+    }
+    Ok(())
+}
+
 /// Repeated child elements — `#[xml(list)]` on a `Vec<T>` field, e.g.
 /// `Vec<DeviceDisk>` under a `<devices>` container. Deliberately
 /// **not** a `write_to`/reconcile-a-Vec design: nothing in this project

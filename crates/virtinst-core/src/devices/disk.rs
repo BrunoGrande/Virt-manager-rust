@@ -3,6 +3,14 @@
 //! nested-element attribute groups (`<driver>`, `<source>`, `<target>`),
 //! not just flat attributes-on-self.
 //!
+//! `read_only`/`shareable`/`transient` were left out when this struct
+//! was first written — `<disk><readonly/></disk>` binds a child
+//! element's *presence*, not an attribute or text value, and that field
+//! kind (`#[xml(present)]`) didn't exist in the macro yet. Added now
+//! that `DeviceFilesystem` needed the same pattern and it got built
+//! properly. Confirmed against `disk.py`: all three really are
+//! `is_bool=True`, same shape.
+//!
 //! Per-driver default resolution (`_default_bus` in upstream, ticket
 //! 17's finding) isn't modeled yet — this struct is XML *binding* only
 //! so far, not the default-resolution chain.
@@ -14,6 +22,7 @@ use virtinst_xml::XmlBound;
 ///   <driver name="qemu" type="qcow2"/>
 ///   <source file="/var/lib/libvirt/images/vm.qcow2"/>
 ///   <target dev="vda" bus="virtio"/>
+///   <readonly/>
 /// </disk>
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, XmlBound)]
@@ -39,4 +48,13 @@ pub struct DeviceDisk {
 
     #[xml(path = "target", attribute = "bus")]
     pub target_bus: Option<String>,
+
+    #[xml(path = "readonly", present)]
+    pub read_only: bool,
+
+    #[xml(path = "shareable", present)]
+    pub shareable: bool,
+
+    #[xml(path = "transient", present)]
+    pub transient: bool,
 }
