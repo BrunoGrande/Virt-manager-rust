@@ -8,7 +8,7 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DeviceSerial, DeviceSound, DeviceTpm,
+    DeviceList, DeviceNetwork, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -67,6 +67,10 @@ const FIXTURE: &str = r#"<domain type="qemu">
         </active_pcr_banks>
       </backend>
     </tpm>
+    <rng model="virtio">
+      <backend model="random">/dev/urandom</backend>
+      <rate bytes="1024" period="2000"/>
+    </rng>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -249,6 +253,33 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.tpms[0].persistent_state, Some(true));
     assert!(devices.tpms[0].sha256);
     assert!(!devices.tpms[0].sha1); // present in the fixture only for sha256
+
+    assert_eq!(devices.rngs.len(), 1);
+    assert_eq!(devices.rngs[0].model, Some("virtio".into()));
+    assert_eq!(devices.rngs[0].backend_model, Some("random".into()));
+    assert_eq!(devices.rngs[0].backend_device, Some("/dev/urandom".into()));
+    assert_eq!(devices.rngs[0].rate_bytes, Some(1024));
+    assert_eq!(devices.rngs[0].rate_period, Some(2000));
+}
+
+#[test]
+fn rng_edits_nested_text_without_disturbing_the_sibling_attribute() {
+    // attribute and text both bind under path = "backend" here, unlike
+    // CurrentMemory where both were on self — the interesting case is
+    // whether editing one leaves the other (on the same nested element)
+    // alone.
+    let mut doc =
+        parse_libvirt_xml(r#"<rng model="virtio"><backend model="random">/dev/urandom</backend></rng>"#)
+            .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let mut rng = DeviceRng::from_element(&doc, el);
+    rng.backend_device = Some("/dev/hwrng".into());
+    rng.write_to(&mut doc, el);
+
+    let after = DeviceRng::from_element(&doc, el);
+    assert_eq!(after.backend_device, Some("/dev/hwrng".into()));
+    assert_eq!(after.backend_model, Some("random".into())); // untouched
 }
 
 #[test]

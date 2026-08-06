@@ -42,11 +42,14 @@ pub use serial::DeviceSerial;
 pub mod tpm;
 pub use tpm::DeviceTpm;
 
+pub mod rng;
+pub use rng::DeviceRng;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 7 variants (see docs/research/gui-screen-inventory.md
+// TODO: the remaining 6 variants (see docs/research/gui-screen-inventory.md
 // and ticket 12's NewDevice enum): Video, Watchdog, Smartcard, UsbRedir,
-// Rng, Panic, Vsock. Char's other three tags (console/parallel/channel)
-// share DeviceSerial's exact field set under a different tag — same
-// pattern, added when needed.
+// Panic, Vsock. Char's other three tags (console/parallel/channel) share
+// DeviceSerial's exact field set under a different tag — same pattern,
+// added when needed.
