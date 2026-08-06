@@ -3,16 +3,17 @@
 //! any number of times, unlike every field modeled so far.
 //!
 //! `disks`/`interfaces`/`graphics`/`controllers`/`inputs`/`sounds`/
-//! `filesystems`/`hostdevs`/`serials`/`tpms`/`rngs`/`panics`/`vsocks` are
-//! modeled so far, matching how many device types have their own struct
-//! ([`super::DeviceDisk`], [`super::DeviceNetwork`],
+//! `filesystems`/`hostdevs`/`serials`/`tpms`/`rngs`/`panics`/`vsocks`/
+//! `watchdogs` are modeled so far, matching how many device types have
+//! their own struct ([`super::DeviceDisk`], [`super::DeviceNetwork`],
 //! [`super::DeviceGraphics`], [`super::DeviceController`],
 //! [`super::DeviceInput`], [`super::DeviceSound`],
 //! [`super::DeviceFilesystem`], [`super::DeviceHostdev`],
 //! [`super::DeviceSerial`], [`super::DeviceTpm`], [`super::DeviceRng`],
-//! [`super::DevicePanic`], [`super::DeviceVsock`]) — the remaining
-//! `NewDevice` variants (ticket 12) get their own `Vec<T>` field here as
-//! each one is implemented, same pattern.
+//! [`super::DevicePanic`], [`super::DeviceVsock`],
+//! [`super::DeviceWatchdog`]) — the remaining `NewDevice` variants
+//! (ticket 12) get their own `Vec<T>` field here as each one is
+//! implemented, same pattern.
 //!
 //! Every `list` field is populated by
 //! [`virtinst_xml::XmlBound::from_element`] but not written back through
@@ -26,6 +27,7 @@
 use super::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
     DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm, DeviceVsock,
+    DeviceWatchdog,
 };
 use virtinst_xml::XmlBound;
 
@@ -70,4 +72,7 @@ pub struct DeviceList {
 
     #[xml(list)]
     pub vsocks: Vec<DeviceVsock>,
+
+    #[xml(list)]
+    pub watchdogs: Vec<DeviceWatchdog>,
 }

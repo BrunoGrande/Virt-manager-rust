@@ -9,7 +9,7 @@
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
     DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
-    DeviceVsock,
+    DeviceVsock, DeviceWatchdog,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -76,6 +76,7 @@ const FIXTURE: &str = r#"<domain type="qemu">
     <vsock model="virtio">
       <cid auto="no" address="3"/>
     </vsock>
+    <watchdog model="i6300esb" action="reset"/>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -273,6 +274,25 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.vsocks[0].model, Some("virtio".into()));
     assert_eq!(devices.vsocks[0].auto_cid, Some(false));
     assert_eq!(devices.vsocks[0].cid, Some(3));
+
+    assert_eq!(devices.watchdogs.len(), 1);
+    assert_eq!(devices.watchdogs[0].model, Some("i6300esb".into()));
+    assert_eq!(devices.watchdogs[0].action, Some("reset".into()));
+}
+
+#[test]
+fn watchdog_edit_preserves_the_other_attribute() {
+    let mut doc = parse_libvirt_xml(r#"<watchdog model="ib700" action="poweroff"/>"#)
+        .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let mut watchdog = DeviceWatchdog::from_element(&doc, el);
+    watchdog.action = Some("pause".into());
+    watchdog.write_to(&mut doc, el);
+
+    let after = DeviceWatchdog::from_element(&doc, el);
+    assert_eq!(after.action, Some("pause".into()));
+    assert_eq!(after.model, Some("ib700".into())); // untouched
 }
 
 #[test]

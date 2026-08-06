@@ -51,11 +51,14 @@ pub use panic::DevicePanic;
 pub mod vsock;
 pub use vsock::DeviceVsock;
 
+pub mod watchdog;
+pub use watchdog::DeviceWatchdog;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 4 variants (see docs/research/gui-screen-inventory.md
-// and ticket 12's NewDevice enum): Video, Watchdog, Smartcard, UsbRedir.
-// Char's other three tags (console/parallel/channel) share
-// DeviceSerial's exact field set under a different tag — same pattern,
-// added when needed.
+// TODO: the remaining 3 variants (see docs/research/gui-screen-inventory.md
+// and ticket 12's NewDevice enum): Video, Smartcard, UsbRedir. Char's
+// other three tags (console/parallel/channel) share DeviceSerial's
+// exact field set under a different tag — same pattern, added when
+// needed.
