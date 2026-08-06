@@ -8,7 +8,7 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DeviceSerial, DeviceSound,
+    DeviceList, DeviceNetwork, DeviceSerial, DeviceSound, DeviceTpm,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -60,6 +60,13 @@ const FIXTURE: &str = r#"<domain type="qemu">
         <model name="isa-serial"/>
       </target>
     </serial>
+    <tpm model="tpm-crb">
+      <backend type="emulator" version="2.0" persistent_state="yes">
+        <active_pcr_banks>
+          <sha256/>
+        </active_pcr_banks>
+      </backend>
+    </tpm>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -235,6 +242,40 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.serials[0].target_type, Some("isa-serial".into()));
     assert_eq!(devices.serials[0].target_port, Some(0));
     assert_eq!(devices.serials[0].target_model_name, Some("isa-serial".into()));
+
+    assert_eq!(devices.tpms.len(), 1);
+    assert_eq!(devices.tpms[0].model, Some("tpm-crb".into()));
+    assert_eq!(devices.tpms[0].backend_type, Some("emulator".into()));
+    assert_eq!(devices.tpms[0].persistent_state, Some(true));
+    assert!(devices.tpms[0].sha256);
+    assert!(!devices.tpms[0].sha1); // present in the fixture only for sha256
+}
+
+#[test]
+fn present_field_works_three_segments_deep() {
+    let mut doc = parse_libvirt_xml(
+        r#"<tpm model="tpm-tis"><backend type="passthrough"><device path="/dev/tpm0"/></backend></tpm>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let mut tpm = DeviceTpm::from_element(&doc, el);
+    assert!(!tpm.sha1);
+    assert_eq!(tpm.device_path, Some("/dev/tpm0".into()));
+
+    // Setting a `present` field three segments deep must create the
+    // whole missing chain (backend already exists here; active_pcr_banks
+    // and sha1 don't) without disturbing the sibling <device> element.
+    tpm.sha1 = true;
+    tpm.write_to(&mut doc, el);
+
+    let out = doc.write_str().expect("serializes");
+    assert!(out.contains("<active_pcr_banks"));
+    assert!(out.contains("<sha1"));
+    assert!(out.contains(r#"path="/dev/tpm0""#)); // untouched sibling
+
+    let reread = DeviceTpm::from_element(&doc, el);
+    assert!(reread.sha1);
 }
 
 #[test]
