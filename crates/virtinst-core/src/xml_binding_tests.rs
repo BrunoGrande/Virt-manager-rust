@@ -6,7 +6,7 @@
 //! foreign `xmlns:qemu` elements), exercised directly rather than
 //! assumed to work because the macro compiles.
 
-use crate::devices::{DeviceDisk, DeviceList};
+use crate::devices::{DeviceDisk, DeviceList, DeviceNetwork};
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
 use virtinst_xml::{parse_libvirt_xml, XmlBound};
@@ -26,6 +26,13 @@ const FIXTURE: &str = r#"<domain type="qemu">
     <disk type="file" device="cdrom">
       <target dev="hda" bus="ide"/>
     </disk>
+    <interface type="network">
+      <mac address="52:54:00:12:34:56"/>
+      <source network="default"/>
+      <model type="virtio"/>
+      <target dev="vnet0"/>
+      <link state="up"/>
+    </interface>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -137,6 +144,31 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.disks[0].target_dev, Some("vda".into()));
     assert_eq!(devices.disks[1].target_dev, Some("hda".into()));
     assert_eq!(devices.disks[1].device, Some("cdrom".into()));
+
+    // Two different `list` fields on the same struct, sharing one
+    // container element — each must find only its own tag, not the
+    // other's (`disks` still reads exactly 2, not 3, with the
+    // <interface> mixed in among the <disk> siblings).
+    assert_eq!(devices.interfaces.len(), 1);
+    assert_eq!(devices.interfaces[0].macaddr, Some("52:54:00:12:34:56".into()));
+    assert_eq!(devices.interfaces[0].source_network, Some("default".into()));
+    assert_eq!(devices.interfaces[0].model, Some("virtio".into()));
+}
+
+#[test]
+fn network_reads_distinct_source_fields_for_bridge_vs_network_type() {
+    // source_network and source_bridge both bind under the same
+    // <source> path but different attributes — only the one actually
+    // present in the XML should come back Some.
+    let doc = parse_libvirt_xml(
+        r#"<interface type="bridge"><source bridge="virbr0"/></interface>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let iface = DeviceNetwork::from_element(&doc, el);
+    assert_eq!(iface.source_bridge, Some("virbr0".into()));
+    assert_eq!(iface.source_network, None);
 }
 
 #[test]
