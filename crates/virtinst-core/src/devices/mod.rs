@@ -18,10 +18,13 @@ pub use disk::DeviceDisk;
 pub mod network;
 pub use network::DeviceNetwork;
 
+pub mod graphics;
+pub use graphics::DeviceGraphics;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 15 variants (see docs/research/gui-screen-inventory.md
-// and ticket 12's NewDevice enum): Controller, Input, Graphics, Sound,
-// Hostdev, Char, Video, Watchdog, Filesystem, Smartcard, UsbRedir, Tpm,
-// Rng, Panic, Vsock.
+// TODO: the remaining 14 variants (see docs/research/gui-screen-inventory.md
+// and ticket 12's NewDevice enum): Controller, Input, Sound, Hostdev,
+// Char, Video, Watchdog, Filesystem, Smartcard, UsbRedir, Tpm, Rng,
+// Panic, Vsock.

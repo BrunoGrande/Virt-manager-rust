@@ -6,7 +6,7 @@
 //! foreign `xmlns:qemu` elements), exercised directly rather than
 //! assumed to work because the macro compiles.
 
-use crate::devices::{DeviceDisk, DeviceList, DeviceNetwork};
+use crate::devices::{DeviceDisk, DeviceGraphics, DeviceList, DeviceNetwork};
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
 use virtinst_xml::{parse_libvirt_xml, XmlBound};
@@ -33,6 +33,7 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <target dev="vnet0"/>
       <link state="up"/>
     </interface>
+    <graphics type="vnc" port="-1" autoport="yes" listen="127.0.0.1"/>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -153,6 +154,44 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.interfaces[0].macaddr, Some("52:54:00:12:34:56".into()));
     assert_eq!(devices.interfaces[0].source_network, Some("default".into()));
     assert_eq!(devices.interfaces[0].model, Some("virtio".into()));
+
+    assert_eq!(devices.graphics.len(), 1);
+    assert_eq!(devices.graphics[0].graphics_type, Some("vnc".into()));
+    assert_eq!(devices.graphics[0].port, Some("-1".into()));
+    assert_eq!(devices.graphics[0].autoport, Some(true));
+    assert_eq!(devices.graphics[0].listen, Some("127.0.0.1".into()));
+}
+
+#[test]
+fn graphics_reads_self_attributes_and_one_nested_spice_attribute() {
+    let doc = parse_libvirt_xml(
+        r#"<graphics type="spice" autoport="yes"><image compression="auto_glz"/></graphics>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let gfx = DeviceGraphics::from_element(&doc, el);
+    assert_eq!(gfx.graphics_type, Some("spice".into()));
+    assert_eq!(gfx.autoport, Some(true));
+    assert_eq!(gfx.image_compression, Some("auto_glz".into()));
+    // Not present in this fixture at all.
+    assert_eq!(gfx.port, None);
+}
+
+#[test]
+fn optional_bool_stays_absent_instead_of_defaulting_to_false() {
+    // No autoport attribute at all — must read as None, not Some(false),
+    // and writing the struct straight back must NOT invent one.
+    let mut doc = parse_libvirt_xml(r#"<graphics type="vnc" port="5900"/>"#)
+        .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let gfx = DeviceGraphics::from_element(&doc, el);
+    assert_eq!(gfx.autoport, None);
+
+    gfx.write_to(&mut doc, el);
+    let out = doc.write_str().expect("serializes");
+    assert!(!out.contains("autoport"));
 }
 
 #[test]

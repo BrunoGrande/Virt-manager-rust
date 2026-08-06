@@ -54,12 +54,29 @@ impl XmlAttrValue for String {
 }
 
 /// libvirt XML's usual boolean spelling: `yes`/`no`, not `true`/`false`.
+/// A **required** yes/no attribute — always writes one or the other.
+/// Most yes/no attributes in libvirt XML are actually optional (absent
+/// means "use the driver's default", not "false"); for those, bind to
+/// `Option<bool>` instead, which stays genuinely unwritten when unset
+/// rather than defaulting to `false` and then writing `="no"` on an
+/// attribute the source document never had at all.
 impl XmlAttrValue for bool {
     fn from_attr(s: Option<&str>) -> Self {
         s == Some("yes")
     }
     fn to_attr(&self) -> Option<String> {
         Some(if *self { "yes" } else { "no" }.to_string())
+    }
+}
+
+/// The optional counterpart to the `bool` impl above — absent stays
+/// absent on write, rather than round-tripping through `false`.
+impl XmlAttrValue for Option<bool> {
+    fn from_attr(s: Option<&str>) -> Self {
+        s.map(|s| s == "yes")
+    }
+    fn to_attr(&self) -> Option<String> {
+        self.map(|b| if b { "yes" } else { "no" }.to_string())
     }
 }
 
