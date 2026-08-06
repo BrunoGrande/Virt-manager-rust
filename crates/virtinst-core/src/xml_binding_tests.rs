@@ -8,7 +8,7 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
+    DeviceList, DeviceNetwork, DevicePanic, DeviceRng, DeviceSerial, DeviceSound, DeviceTpm,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -71,6 +71,7 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <backend model="random">/dev/urandom</backend>
       <rate bytes="1024" period="2000"/>
     </rng>
+    <panic model="isa"/>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -260,6 +261,27 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.rngs[0].backend_device, Some("/dev/urandom".into()));
     assert_eq!(devices.rngs[0].rate_bytes, Some(1024));
     assert_eq!(devices.rngs[0].rate_period, Some(2000));
+
+    assert_eq!(devices.panics.len(), 1);
+    assert_eq!(devices.panics[0].model, Some("isa".into()));
+}
+
+#[test]
+fn panic_stub_case_round_trips_with_no_model_and_no_invented_attribute() {
+    // The set_stub case: <panic/> with no model at all, telling libvirt
+    // to pick a default. This crate never prunes elements it didn't
+    // create, so there's nothing for a set_stub-equivalent to do -
+    // confirm the round trip just stays empty rather than inventing an
+    // attribute or dropping the element.
+    let mut doc = parse_libvirt_xml(r#"<panic/>"#).expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let panic_dev = DevicePanic::from_element(&doc, el);
+    assert_eq!(panic_dev.model, None);
+
+    panic_dev.write_to(&mut doc, el);
+    let out = doc.write_str().expect("serializes");
+    assert!(!out.contains("model="));
 }
 
 #[test]
