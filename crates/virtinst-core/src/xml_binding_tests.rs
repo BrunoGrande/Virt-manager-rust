@@ -9,7 +9,7 @@
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
     DeviceList, DeviceNetwork, DevicePanic, DeviceRedirdev, DeviceRng, DeviceSerial,
-    DeviceSmartcard, DeviceSound, DeviceTpm, DeviceVsock, DeviceWatchdog,
+    DeviceSmartcard, DeviceSound, DeviceTpm, DeviceVideo, DeviceVsock, DeviceWatchdog,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -85,6 +85,9 @@ const FIXTURE: &str = r#"<domain type="qemu">
     <redirdev bus="usb" type="tcp">
       <source mode="connect" host="localhost" service="4000"/>
     </redirdev>
+    <video>
+      <model type="qxl" ram="65536" vram="65536" vgamem="16384" heads="1" primary="yes"/>
+    </video>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -311,6 +314,32 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.redirdevs[0].source_mode, Some("connect".into()));
     assert_eq!(devices.redirdevs[0].source_host, Some("localhost".into()));
     assert_eq!(devices.redirdevs[0].source_service, Some(4000));
+
+    assert_eq!(devices.videos.len(), 1);
+    assert_eq!(devices.videos[0].model, Some("qxl".into()));
+    assert_eq!(devices.videos[0].ram, Some(65536));
+    assert_eq!(devices.videos[0].vram, Some(65536));
+    assert_eq!(devices.videos[0].vgamem, Some(16384));
+    assert_eq!(devices.videos[0].heads, Some(1));
+    assert_eq!(devices.videos[0].primary, Some(true));
+    // No <acceleration> in this fixture's <model>.
+    assert_eq!(devices.videos[0].accel3d, None);
+}
+
+#[test]
+fn video_reads_acceleration_two_segments_under_model() {
+    let doc = parse_libvirt_xml(
+        r#"<video><model type="virtio" heads="1"><acceleration accel3d="yes"/></model></video>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let video = DeviceVideo::from_element(&doc, el);
+    assert_eq!(video.model, Some("virtio".into()));
+    assert_eq!(video.accel3d, Some(true));
+    // qxl-only fields genuinely absent for a virtio model.
+    assert_eq!(video.vram, None);
+    assert_eq!(video.vgamem, None);
 }
 
 #[test]

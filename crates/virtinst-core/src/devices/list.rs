@@ -2,18 +2,16 @@
 //! domain. First real exercise of `#[xml(list)]`: `<disk>` can appear
 //! any number of times, unlike every field modeled so far.
 //!
-//! `disks`/`interfaces`/`graphics`/`controllers`/`inputs`/`sounds`/
-//! `filesystems`/`hostdevs`/`serials`/`tpms`/`rngs`/`panics`/`vsocks`/
-//! `watchdogs`/`smartcards`/`redirdevs` are modeled so far, matching how
-//! many device types have their own struct ([`super::DeviceDisk`],
-//! [`super::DeviceNetwork`], [`super::DeviceGraphics`],
-//! [`super::DeviceController`], [`super::DeviceInput`],
-//! [`super::DeviceSound`], [`super::DeviceFilesystem`],
-//! [`super::DeviceHostdev`], [`super::DeviceSerial`],
-//! [`super::DeviceTpm`], [`super::DeviceRng`], [`super::DevicePanic`],
-//! [`super::DeviceVsock`], [`super::DeviceWatchdog`],
-//! [`super::DeviceSmartcard`], [`super::DeviceRedirdev`]) — `Video` is
-//! the last of the 17 `NewDevice` variants (ticket 12) left to model.
+//! Every one of ticket 12's 17 `NewDevice` variants now has both a
+//! typed struct ([`super::DeviceDisk`], [`super::DeviceNetwork`],
+//! [`super::DeviceGraphics`], [`super::DeviceController`],
+//! [`super::DeviceInput`], [`super::DeviceSound`],
+//! [`super::DeviceFilesystem`], [`super::DeviceHostdev`],
+//! [`super::DeviceSerial`], [`super::DeviceTpm`], [`super::DeviceRng`],
+//! [`super::DevicePanic`], [`super::DeviceVsock`],
+//! [`super::DeviceWatchdog`], [`super::DeviceSmartcard`],
+//! [`super::DeviceRedirdev`], [`super::DeviceVideo`]) and a `list` field
+//! here.
 //!
 //! Every `list` field is populated by
 //! [`virtinst_xml::XmlBound::from_element`] but not written back through
@@ -27,7 +25,7 @@
 use super::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
     DeviceNetwork, DevicePanic, DeviceRedirdev, DeviceRng, DeviceSerial, DeviceSmartcard,
-    DeviceSound, DeviceTpm, DeviceVsock, DeviceWatchdog,
+    DeviceSound, DeviceTpm, DeviceVideo, DeviceVsock, DeviceWatchdog,
 };
 use virtinst_xml::XmlBound;
 
@@ -81,4 +79,7 @@ pub struct DeviceList {
 
     #[xml(list)]
     pub redirdevs: Vec<DeviceRedirdev>,
+
+    #[xml(list)]
+    pub videos: Vec<DeviceVideo>,
 }

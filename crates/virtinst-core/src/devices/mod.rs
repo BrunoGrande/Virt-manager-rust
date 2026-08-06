@@ -60,10 +60,16 @@ pub use smartcard::{Certificate, DeviceSmartcard};
 pub mod redirdev;
 pub use redirdev::DeviceRedirdev;
 
+pub mod video;
+pub use video::DeviceVideo;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: Video is the last of the 17 NewDevice variants (ticket 12) left
-// to model (see docs/research/gui-screen-inventory.md). Char's other
-// three tags (console/parallel/channel) share DeviceSerial's exact
-// field set under a different tag — same pattern, added when needed.
+// All 17 of ticket 12's NewDevice variants now have real XML bindings.
+// Char's other three tags (console/parallel/channel) share
+// DeviceSerial's exact field set under a different tag — added when
+// needed, same pattern. Still ahead, not XML-binding work: the
+// NewDevice enum itself (ticket 12), per-driver default-resolution
+// methods (ticket 17), and the CLI's derive-macro-generated
+// option-string parsers (ticket 16).
