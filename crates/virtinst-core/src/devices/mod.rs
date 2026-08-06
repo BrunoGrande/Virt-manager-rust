@@ -27,9 +27,12 @@ pub use controller::DeviceController;
 pub mod input;
 pub use input::DeviceInput;
 
+pub mod sound;
+pub use sound::DeviceSound;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 12 variants (see docs/research/gui-screen-inventory.md
-// and ticket 12's NewDevice enum): Sound, Hostdev, Char, Video,
-// Watchdog, Filesystem, Smartcard, UsbRedir, Tpm, Rng, Panic, Vsock.
+// TODO: the remaining 11 variants (see docs/research/gui-screen-inventory.md
+// and ticket 12's NewDevice enum): Hostdev, Char, Video, Watchdog,
+// Filesystem, Smartcard, UsbRedir, Tpm, Rng, Panic, Vsock.

@@ -8,6 +8,7 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceGraphics, DeviceInput, DeviceList, DeviceNetwork,
+    DeviceSound,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -40,6 +41,9 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <driver queues="4"/>
     </controller>
     <input type="tablet" bus="usb"/>
+    <sound model="ich9" multichannel="yes">
+      <audio id="1"/>
+    </sound>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -175,6 +179,22 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.inputs.len(), 1);
     assert_eq!(devices.inputs[0].input_type, Some("tablet".into()));
     assert_eq!(devices.inputs[0].bus, Some("usb".into()));
+
+    assert_eq!(devices.sounds.len(), 1);
+    assert_eq!(devices.sounds[0].model, Some("ich9".into()));
+    assert_eq!(devices.sounds[0].multichannel, Some(true));
+    assert_eq!(devices.sounds[0].audio_id, Some("1".into()));
+}
+
+#[test]
+fn sound_optional_bool_absent_when_multichannel_not_set() {
+    let doc = parse_libvirt_xml(r#"<sound model="ich6"/>"#).expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let sound = DeviceSound::from_element(&doc, el);
+    assert_eq!(sound.model, Some("ich6".into()));
+    assert_eq!(sound.multichannel, None);
+    assert_eq!(sound.audio_id, None);
 }
 
 #[test]
