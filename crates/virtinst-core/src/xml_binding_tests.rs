@@ -8,7 +8,7 @@
 
 use crate::devices::{
     DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
-    DeviceList, DeviceNetwork, DeviceSound,
+    DeviceList, DeviceNetwork, DeviceSerial, DeviceSound,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -55,6 +55,11 @@ const FIXTURE: &str = r#"<domain type="qemu">
         <address domain="0x0000" bus="0x00" slot="0x02" function="0x0"/>
       </source>
     </hostdev>
+    <serial type="pty">
+      <target type="isa-serial" port="0">
+        <model name="isa-serial"/>
+      </target>
+    </serial>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -224,6 +229,35 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.hostdevs[0].pci_slot, Some("0x02".into()));
     // USB fields genuinely absent from this PCI-addressed hostdev.
     assert_eq!(devices.hostdevs[0].vendor, None);
+
+    assert_eq!(devices.serials.len(), 1);
+    assert_eq!(devices.serials[0].char_type, Some("pty".into()));
+    assert_eq!(devices.serials[0].target_type, Some("isa-serial".into()));
+    assert_eq!(devices.serials[0].target_port, Some(0));
+    assert_eq!(devices.serials[0].target_model_name, Some("isa-serial".into()));
+}
+
+#[test]
+fn serial_reads_source_child_and_its_own_multi_segment_target_model() {
+    let doc = parse_libvirt_xml(
+        r#"<serial type="tcp">
+             <source mode="bind" host="127.0.0.1" service="2445" tls="yes"/>
+             <target type="isa-serial" port="1">
+               <model name="usb-serial"/>
+             </target>
+           </serial>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let serial = DeviceSerial::from_element(&doc, el);
+    assert_eq!(serial.source_mode, Some("bind".into()));
+    assert_eq!(serial.source_host, Some("127.0.0.1".into()));
+    assert_eq!(serial.source_service, Some(2445));
+    assert_eq!(serial.source_tls, Some(true));
+    assert_eq!(serial.target_model_name, Some("usb-serial".into()));
+    // No <source path="..."/> in this fixture.
+    assert_eq!(serial.source_path, None);
 }
 
 #[test]
