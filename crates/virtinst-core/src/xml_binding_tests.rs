@@ -7,8 +7,8 @@
 //! assumed to work because the macro compiles.
 
 use crate::devices::{
-    DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceInput, DeviceList,
-    DeviceNetwork, DeviceSound,
+    DeviceController, DeviceDisk, DeviceFilesystem, DeviceGraphics, DeviceHostdev, DeviceInput,
+    DeviceList, DeviceNetwork, DeviceSound,
 };
 use crate::domain::{Clock, CurrentMemory};
 use crate::guest::Guest;
@@ -50,6 +50,11 @@ const FIXTURE: &str = r#"<domain type="qemu">
       <target dir="/mnt/share"/>
       <readonly/>
     </filesystem>
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x00" slot="0x02" function="0x0"/>
+      </source>
+    </hostdev>
   </devices>
   <metadata>
     <app:foo xmlns:app="http://example.com/app" note="untouched-foreign-namespace"/>
@@ -211,6 +216,52 @@ fn list_read_collects_every_repeated_element() {
     assert_eq!(devices.filesystems[0].source_dir, Some("/host/share".into()));
     assert_eq!(devices.filesystems[0].target_dir, Some("/mnt/share".into()));
     assert!(devices.filesystems[0].readonly);
+
+    assert_eq!(devices.hostdevs.len(), 1);
+    assert_eq!(devices.hostdevs[0].hostdev_type, Some("pci".into()));
+    assert_eq!(devices.hostdevs[0].managed, Some(true));
+    assert_eq!(devices.hostdevs[0].pci_domain, Some("0x0000".into()));
+    assert_eq!(devices.hostdevs[0].pci_slot, Some("0x02".into()));
+    // USB fields genuinely absent from this PCI-addressed hostdev.
+    assert_eq!(devices.hostdevs[0].vendor, None);
+}
+
+#[test]
+fn hostdev_reads_multi_segment_path_for_usb_vendor_product() {
+    // source/vendor/@id and source/product/@id - two levels deep, the
+    // first struct to actually need more than one path segment.
+    let doc = parse_libvirt_xml(
+        r#"<hostdev mode="subsystem" type="usb">
+             <source>
+               <vendor id="0x1234"/>
+               <product id="0x5678"/>
+             </source>
+           </hostdev>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let hostdev = DeviceHostdev::from_element(&doc, el);
+    assert_eq!(hostdev.vendor, Some("0x1234".into()));
+    assert_eq!(hostdev.product, Some("0x5678".into()));
+    // PCI-only fields genuinely absent from this USB-addressed hostdev.
+    assert_eq!(hostdev.pci_domain, None);
+}
+
+#[test]
+fn hostdev_reads_text_content_under_a_multi_segment_path() {
+    // source/interface has no @attr in upstream's XPath - it's the
+    // element's own text content, nested two levels deep.
+    let doc = parse_libvirt_xml(
+        r#"<hostdev mode="capabilities" type="net">
+             <source><interface>eth0</interface></source>
+           </hostdev>"#,
+    )
+    .expect("fixture parses");
+    let el = doc.root_element().expect("root element");
+
+    let hostdev = DeviceHostdev::from_element(&doc, el);
+    assert_eq!(hostdev.net_interface, Some("eth0".into()));
 }
 
 #[test]

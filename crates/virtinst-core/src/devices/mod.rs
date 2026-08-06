@@ -33,9 +33,12 @@ pub use sound::DeviceSound;
 pub mod filesystem;
 pub use filesystem::DeviceFilesystem;
 
+pub mod hostdev;
+pub use hostdev::DeviceHostdev;
+
 pub mod list;
 pub use list::DeviceList;
 
-// TODO: the remaining 10 variants (see docs/research/gui-screen-inventory.md
-// and ticket 12's NewDevice enum): Hostdev, Char, Video, Watchdog,
-// Smartcard, UsbRedir, Tpm, Rng, Panic, Vsock.
+// TODO: the remaining 9 variants (see docs/research/gui-screen-inventory.md
+// and ticket 12's NewDevice enum): Char, Video, Watchdog, Smartcard,
+// UsbRedir, Tpm, Rng, Panic, Vsock.
